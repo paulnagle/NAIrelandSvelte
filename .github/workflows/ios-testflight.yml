@@ -132,9 +132,14 @@ jobs:
         run: |
           set -euo pipefail
           PROFILE_PATH="$RUNNER_TEMP/dist.mobileprovision"
+          PLIST_PATH="$RUNNER_TEMP/profile.plist"
           echo -n "$PROFILE_BASE64" | base64 --decode -o "$PROFILE_PATH"
-          PROFILE_UUID="$(security cms -D -i "$PROFILE_PATH" 2>/dev/null \
-            | /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)"
+          # Strip the CMS envelope to get a plain plist. openssl is more
+          # reliable than `security cms -D` on recent macOS runner images.
+          openssl smime -inform der -verify -noverify \
+            -in "$PROFILE_PATH" -out "$PLIST_PATH" 2>/dev/null
+          PROFILE_UUID="$(/usr/libexec/PlistBuddy -c 'Print UUID' "$PLIST_PATH")"
+          rm -f "$PLIST_PATH"
           echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           cp "$PROFILE_PATH" \
