@@ -1,14 +1,14 @@
 @import 'tailwindcss';
 
-/* BMLT Search design tokens.
+/* NA Ireland design tokens.
    The palette is carried over from the Ionic build's theme/variables.scss so the
-   rebuild is recognisably the same app: BMLT blue as the primary, and the seven
-   pastel weekday accents that colour every meeting's time badge. */
+   rebuild is recognisably the same app: NA Ireland deep blue as the primary, and
+   the seven pastel weekday accents that colour every meeting's time badge. */
 @theme {
-  /* Primary — BMLT blue */
-  --color-bmlt: #0a61ad;
-  --color-bmlt-shade: #095598;
-  --color-bmlt-tint: #2371b5;
+  /* Primary — NA Ireland deep blue */
+  --color-bmlt: #000090;
+  --color-bmlt-shade: #000078;
+  --color-bmlt-tint: #1a1aab;
   --color-bmlt-ink: #ffffff;
 
   --color-accent: #3dc2ff;

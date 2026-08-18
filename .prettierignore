@@ -1,0 +1,10 @@
+build/
+.svelte-kit/
+node_modules/
+ios/
+android/
+dist/
+coverage/
+BMLTSearchSvelte/
+BMLTSearch3/
+NA-Ireland-Ionic-6/

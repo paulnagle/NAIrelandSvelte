@@ -1,0 +1,244 @@
+name: iOS TestFlight
+
+# Manual/tag-triggered on purpose: macOS runner minutes bill at a 10x multiplier
+# against the Actions quota, and an upload creates a permanent build record —
+# build numbers cannot be reused, and builds can be expired but never deleted.
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: 'Upload the build to TestFlight (uncheck to archive only)'
+        type: boolean
+        default: true
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: ios-testflight
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Must carry Xcode 26+/iOS 26 SDK: App Store Connect rejects uploads built
+    # against anything older with a 409 at the altool stage — after a full
+    # successful archive and export, so the failure surfaces late and expensively.
+    runs-on: macos-26
+    timeout-minutes: 45
+
+    env:
+      TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      BUNDLE_ID: app.bmlt.search
+      SCHEME: App
+      XCODE_PROJECT: ios/App/App.xcodeproj
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Checked before anything expensive runs: a missing secret otherwise
+      # surfaces as an opaque codesign failure ten minutes into the job.
+      - name: Verify secrets
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -n "$TEAM_ID" ] || missing+=("APPLE_TEAM_ID")
+          [ -n "${{ secrets.APPSTORE_KEY_ID }}" ] || missing+=("APPSTORE_KEY_ID")
+          [ -n "${{ secrets.APPSTORE_ISSUER_ID }}" ] || missing+=("APPSTORE_ISSUER_ID")
+          [ -n "${{ secrets.APPSTORE_PRIVATE_KEY }}" ] || missing+=("APPSTORE_PRIVATE_KEY")
+          [ -n "${{ secrets.IOS_DIST_CERT_P12_BASE64 }}" ] || missing+=("IOS_DIST_CERT_P12_BASE64")
+          [ -n "${{ secrets.IOS_DIST_CERT_PASSWORD }}" ] || missing+=("IOS_DIST_CERT_PASSWORD")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing repository secrets: ${missing[*]}"
+            exit 1
+          fi
+
+      # Fail fast and loudly if the runner image ever drifts back below the SDK
+      # floor Apple enforces, rather than burning a full build to find out.
+      - name: Verify toolchain
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "iOS SDK: $SDK_VERSION"
+          if [ "${SDK_VERSION%%.*}" -lt 26 ]; then
+            echo "::error::iOS SDK $SDK_VERSION is below the iOS 26 minimum App Store Connect requires."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The map screen needs the key baked in at build time; everything else
+      # works without it, so an absent secret degrades rather than fails.
+      - name: Build web bundle
+        env:
+          PUBLIC_GOOGLE_MAPS_KEY_WEB: ${{ secrets.GOOGLE_MAPS_KEY_WEB }}
+          PUBLIC_GOOGLE_MAPS_KEY_IOS: ${{ secrets.GOOGLE_MAPS_KEY_IOS }}
+          PUBLIC_GOOGLE_MAPS_KEY_ANDROID: ${{ secrets.GOOGLE_MAPS_KEY_ANDROID }}
+          PUBLIC_GOOGLE_MAPS_ANDROID_CERT_SHA1: ${{ secrets.GOOGLE_MAPS_ANDROID_CERT_SHA1 }}
+        run: npm run build
+
+      - name: Sync Capacitor iOS
+        run: npx cap sync ios
+
+      # Signing assets live only for the life of this job, in a throwaway
+      # keychain.
+      #
+      # The .p12 behind IOS_DIST_CERT_P12_BASE64 deliberately carries **two**
+      # identities — Apple Distribution *and* Apple Development — sharing one
+      # private key, because both certificates were issued from the same CSR.
+      #
+      # The development half is not used to sign anything. It is there so
+      # automatic signing finds an existing development identity in the keychain.
+      # Without it, `-allowProvisioningUpdates` quietly mints a brand new Apple
+      # Development certificate on every run; that went unnoticed until the
+      # account hit Apple's certificate cap and every archive began failing with
+      # "Choose a certificate to revoke". Eleven throwaway certificates had
+      # accumulated by then.
+      #
+      # Importing the real certificates rather than letting Xcode create them is
+      # the point: Apple caps distribution certificates at 3, and development
+      # ones at around a dozen.
+      - name: Import signing certificate
+        env:
+          CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          CERT_PATH="$RUNNER_TEMP/dist.p12"
+
+          echo -n "$CERT_P12_BASE64" | base64 --decode -o "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" \
+            -P "$CERT_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          # Without this, codesign blocks on a GUI keychain-access prompt that
+          # nothing on a headless runner can answer, and the job hangs.
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+          rm -f "$CERT_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Write App Store Connect API key
+        env:
+          ASC_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          # xcodebuild takes an explicit path; altool only looks in these
+          # well-known directories, so the key goes in both places.
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$ASC_PRIVATE_KEY" > "$RUNNER_TEMP/AuthKey.p8"
+          cp "$RUNNER_TEMP/AuthKey.p8" ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+
+      # Signing is left entirely to automatic provisioning — no CODE_SIGN_IDENTITY
+      # override here. Two reasons it must not be set on this command line:
+      # it contradicts CODE_SIGN_STYLE=Automatic (automatic signing means Xcode
+      # chooses the identity), and command-line build settings apply to every
+      # target in the graph, including SPM dependencies like GoogleMaps, which
+      # then fail with their own provisioning conflict.
+      # MARKETING_VERSION is what TestFlight shows as the version; without it a
+      # tagged build inherits whatever is committed in the Xcode project, so
+      # every release reads 1.0. A manual run leaves the project value alone —
+      # only a tag names a version.
+      - name: Derive version
+        id: version
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            echo "marketing=MARKETING_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            echo "Version ${GITHUB_REF_NAME#v} (build ${{ github.run_number }})" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "marketing=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Archive
+        env:
+          ASC_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -project "$XCODE_PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            ${{ steps.version.outputs.marketing }} \
+            CODE_SIGN_STYLE=Automatic
+
+      # ExportOptions.plist ships without a teamID so this public repository
+      # carries no Apple account identifier. It is injected here instead.
+      - name: Set export team
+        run: |
+          set -euo pipefail
+          test -n "$TEAM_ID" || { echo "::error::APPLE_TEAM_ID secret is not set"; exit 1; }
+          /usr/libexec/PlistBuddy -c "Add :teamID string $TEAM_ID" ios/App/ExportOptions.plist
+
+      - name: Export IPA
+        env:
+          ASC_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist ios/App/ExportOptions.plist \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          ls -lh "$RUNNER_TEMP/export"
+
+      - name: Upload to TestFlight
+        if: github.event_name == 'push' || inputs.upload
+        env:
+          ASC_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          IPA="$(find "$RUNNER_TEMP/export" -name '*.ipa' -maxdepth 1 | head -1)"
+          test -n "$IPA" || { echo "No .ipa produced"; exit 1; }
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA" \
+            --apiKey "$ASC_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-build-${{ github.run_number }}
+          path: |
+            ${{ runner.temp }}/export/*.ipa
+            ${{ runner.temp }}/App.xcarchive/**/*.dSYM
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Clean up keychain
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
+          rm -rf ~/.appstoreconnect/private_keys "$RUNNER_TEMP/AuthKey.p8" || true

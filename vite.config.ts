@@ -37,11 +37,11 @@ export default defineConfig({
       manifestFilename: 'manifest.json',
       includeAssets: ['icon-192.png', 'icon-512.png', 'apple-touch-icon.png'],
       manifest: {
-        name: 'BMLT Search',
-        short_name: 'BMLT Search',
-        description: 'Find Narcotics Anonymous meetings worldwide, in person and online.',
-        theme_color: '#0a61ad',
-        background_color: '#0a61ad',
+        name: 'NA Ireland',
+        short_name: 'NA Ireland',
+        description: 'Find Narcotics Anonymous meetings in Ireland — in person, hybrid, and online.',
+        theme_color: '#000090',
+        background_color: '#000090',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
@@ -62,14 +62,22 @@ export default defineConfig({
         runtimeCaching: [
           {
             // Meeting data must never come from a cache: a stale meeting sends
-            // someone to a room that isn't open. Both BMLT roots and the Google
-            // APIs are network-only.
-            urlPattern: ({ url }: { url: URL }) => url.hostname === 'aggregator.bmltenabled.org' || url.hostname === 'bmlt.virtual-na.org' || url.hostname.endsWith('googleapis.com'),
+            // someone to a room that isn't open. The Ireland BMLT root, the
+            // aggregator (used for formats), the Google APIs, and the NA Ireland
+            // content endpoints (JFT, events, speakers, service groups) are all
+            // network-only.
+            urlPattern: ({ url }: { url: URL }) =>
+              url.hostname === 'bmlt.nasouth.ie' ||
+              url.hostname === 'aggregator.bmltenabled.org' ||
+              url.hostname.endsWith('googleapis.com') ||
+              url.hostname === 'www.na-ireland.org' ||
+              url.hostname === 'nasouth.ie' ||
+              url.hostname === 'www.jftna.org',
             handler: 'NetworkOnly'
           }
         ]
       },
-      devOptions: { enabled: false }
+      devOptions: { enabled: true }
     }),
     svelteTesting()
   ],

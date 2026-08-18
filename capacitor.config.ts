@@ -1,10 +1,10 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.bmlt.search',
-  appName: 'BMLT Search',
+  appId: 'ie.nasouth.android.naireland',
+  appName: 'NA Ireland',
   webDir: 'build',
-  backgroundColor: '#0a61ad',
+  backgroundColor: '#000090',
   plugins: {
     // Native HTTP for the BMLT calls. The root servers do not send permissive
     // CORS headers, so an in-webview fetch() is blocked on device; CapacitorHttp
@@ -14,20 +14,20 @@ const config: CapacitorConfig = {
     },
     SplashScreen: {
       launchShowDuration: 0,
-      backgroundColor: '#0a61ad'
+      backgroundColor: '#000090'
     },
     StatusBar: {
       style: 'LIGHT',
-      backgroundColor: '#0a61ad'
+      backgroundColor: '#000090'
     }
   },
   ios: {
-    scheme: 'BMLT Search',
+    scheme: 'NA Ireland',
     contentInset: 'never',
-    backgroundColor: '#0a61ad'
+    backgroundColor: '#000090'
   },
   android: {
-    backgroundColor: '#0a61ad'
+    backgroundColor: '#000090'
   }
   // For on-device HMR, run `npm run dev:host` and uncomment the block below with
   // your workstation IP (`ipconfig getifaddr en0`). Android emulators can use

@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push supersedes an in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint, types, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run check
+
+      - run: npm test
+
+      # Built here too, so a PR that type-checks but cannot build still fails.
+      # Deployment is not this workflow's job — Cloudflare Pages builds from the
+      # repository itself (see the README) and holds its own copy of these keys
+      # as project environment variables. This build only proves it compiles.
+      #
+      # On a fork's pull request these secrets resolve to empty, which is fine:
+      # an unset key degrades to an empty string and only the map screen depends
+      # on them. See src/lib/maps/keys.ts.
+      - name: Build
+        env:
+          PUBLIC_GOOGLE_MAPS_KEY_WEB: ${{ secrets.GOOGLE_MAPS_KEY_WEB }}
+          PUBLIC_GOOGLE_MAPS_KEY_IOS: ${{ secrets.GOOGLE_MAPS_KEY_IOS }}
+          PUBLIC_GOOGLE_MAPS_KEY_ANDROID: ${{ secrets.GOOGLE_MAPS_KEY_ANDROID }}
+          PUBLIC_GOOGLE_MAPS_ANDROID_CERT_SHA1: ${{ secrets.GOOGLE_MAPS_ANDROID_CERT_SHA1 }}
+        run: npm run build

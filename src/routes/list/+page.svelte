@@ -1,0 +1,169 @@
+<script lang="ts">
+  import { t } from '$lib/i18n/index.js';
+  import { pageTitle } from '$lib/stores/pageTitle.svelte.js';
+  import { settings } from '$lib/stores/settings.svelte.js';
+  import { getAllCounties, getMeetingsByCounty, getFormats } from '$lib/api/bmlt.js';
+  import type { Meeting } from '$lib/meetings/types.js';
+  import MeetingList from '$lib/components/MeetingList.svelte';
+
+  // ── View state ─────────────────────────────────────────────────────────────
+
+  type View = 'counties' | 'meetings';
+
+  let view = $state<View>('counties');
+
+  // ── County list state ──────────────────────────────────────────────────────
+
+  type CountyStatus = 'loading' | 'loaded' | 'error';
+
+  let countyStatus = $state<CountyStatus>('loading');
+  /** Raw API response: all location_sub_province values (including duplicates). */
+  let rawCounties = $state<{ location_sub_province: string }[]>([]);
+
+  /**
+   * De-duplicated, sorted county list derived from the raw API response.
+   * '' maps to 'Online'.
+   * AGENTS.md: prefer $derived to $effect — do NOT seed this in an effect.
+   */
+  const counties = $derived.by(() => {
+    // Plain Set — nothing in the template reads this directly; it is immediately
+    // converted to an Array and the Array is what $derived exposes.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const seen = new Set<string>();
+    for (const row of rawCounties) {
+      seen.add(row.location_sub_province);
+    }
+    return Array.from(seen).sort((a, b) => {
+      // Sort '' (Online) after named counties
+      if (a === '' && b !== '') return 1;
+      if (a !== '' && b === '') return -1;
+      return a.localeCompare(b);
+    });
+  });
+
+  async function loadCounties() {
+    countyStatus = 'loading';
+    try {
+      rawCounties = await getAllCounties();
+      countyStatus = 'loaded';
+    } catch {
+      countyStatus = 'error';
+    }
+  }
+
+  loadCounties();
+
+  // ── Meeting list state ─────────────────────────────────────────────────────
+
+  type MeetingStatus = 'loading' | 'loaded' | 'error';
+
+  let meetingStatus = $state<MeetingStatus>('loading');
+  let selectedCounty = $state('');
+  let meetings = $state<Meeting[]>([]);
+  let formatNames = $state<Record<string, string>>({});
+
+  /** Display label for the selected county ('' → 'Online'). */
+  const countyLabel = $derived(selectedCounty === '' ? 'Online' : selectedCounty);
+
+  async function loadMeetings(county: string) {
+    selectedCounty = county;
+    view = 'meetings';
+    meetingStatus = 'loading';
+    meetings = [];
+    formatNames = {};
+
+    try {
+      const fetched = await getMeetingsByCounty(county);
+      meetings = fetched as Meeting[];
+
+      // Collect all format IDs across the result set, then resolve names.
+      // Plain Set — nothing renders from this; it is passed straight to getFormats().
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      const allIds = new Set<string>();
+      for (const m of fetched) {
+        for (const id of m.format_shared_id_list.split(',')) {
+          const trimmed = id.trim();
+          if (trimmed) allIds.add(trimmed);
+        }
+      }
+      if (allIds.size > 0) {
+        formatNames = await getFormats(allIds, settings.language);
+      }
+      meetingStatus = 'loaded';
+    } catch {
+      meetingStatus = 'error';
+    }
+  }
+
+  function goBack() {
+    view = 'counties';
+  }
+
+  // ── Page title ─────────────────────────────────────────────────────────────
+
+  $effect(() => {
+    pageTitle.value = view === 'counties' ? t('MEETINGLIST') : countyLabel;
+  });
+</script>
+
+{#if view === 'counties'}
+  <!-- ── County list ─────────────────────────────────────────────────────── -->
+  {#if countyStatus === 'loading'}
+    <div class="flex h-full items-center justify-center py-20">
+      <div class="h-10 w-10 animate-spin rounded-full border-4 border-[#000090] border-t-transparent"></div>
+    </div>
+  {:else if countyStatus === 'error'}
+    <div class="flex flex-col items-center gap-4 px-6 py-20 text-center">
+      <p class="text-red-600">{t('MEETINGLIST')} — could not load. Please check your connection.</p>
+      <button onclick={loadCounties} class="rounded-md bg-[#000090] px-6 py-2 text-white"> Try again </button>
+    </div>
+  {:else}
+    <div class="divide-y divide-[var(--border)]">
+      {#each counties as county, i (i)}
+        <button type="button" onclick={() => loadMeetings(county)} class="focusable flex w-full items-center justify-between px-4 py-3 text-left active:bg-[var(--surface-raised)]">
+          <span class="text-sm text-[var(--text)]">{county === '' ? 'Online' : county}</span>
+          <!-- Chevron right -->
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-4 w-4 text-[var(--text-muted)]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      {/each}
+    </div>
+  {/if}
+{:else}
+  <!-- ── Meeting list ─────────────────────────────────────────────────────── -->
+  <!-- Back button injected via pageTitle effect; provide inline back row -->
+  <div class="flex items-center border-b border-[var(--border)] px-2 py-2">
+    <button type="button" onclick={goBack} class="focusable flex items-center gap-1 rounded px-2 py-1 text-sm text-[#000090]" aria-label="Back to county list">
+      <!-- Chevron left -->
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="15 18 9 12 15 6" />
+      </svg>
+      {t('MEETINGLIST')}
+    </button>
+    <span class="ml-2 text-sm font-semibold text-[var(--text)]">{countyLabel}</span>
+  </div>
+
+  {#if meetingStatus === 'loading'}
+    <div class="flex h-full items-center justify-center py-20">
+      <div class="h-10 w-10 animate-spin rounded-full border-4 border-[#000090] border-t-transparent"></div>
+    </div>
+  {:else if meetingStatus === 'error'}
+    <div class="flex flex-col items-center gap-4 px-6 py-20 text-center">
+      <p class="text-red-600">{countyLabel} — could not load. Please check your connection.</p>
+      <button onclick={() => loadMeetings(selectedCounty)} class="rounded-md bg-[#000090] px-6 py-2 text-white"> Try again </button>
+    </div>
+  {:else}
+    <MeetingList {meetings} {formatNames} />
+  {/if}
+{/if}
