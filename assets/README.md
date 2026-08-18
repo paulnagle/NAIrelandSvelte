@@ -12,8 +12,7 @@ the web icons live in `static/`.
 | `splash.png`          | 2732×2732 | Launch screen, light                                             |
 | `splash-dark.png`     | 2732×2732 | Launch screen, dark                                              |
 
-All five are carried over unchanged from the Ionic build's `resources/` folder,
-so the rebuilt app is visually identical on the home screen and at launch.
+All five are generated from `static/web_hi_res_512.png` by `scripts/gen-assets.mjs`.
 
 ## Regenerating
 
@@ -41,5 +40,5 @@ sips -Z 192 assets/icon.png --out static/icon-192.png
 sips -Z 180 assets/icon.png --out static/apple-touch-icon.png
 # The maskable variant needs padding: Android crops it to a circle, and an
 # unpadded icon loses its edges.
-magick assets/icon.png -resize 410x410 -background '#0a61ad' -gravity center -extent 512x512 static/icon-maskable-512.png
+magick assets/icon.png -resize 410x410 -background white -gravity center -extent 512x512 static/icon-maskable-512.png
 ```

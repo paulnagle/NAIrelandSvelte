@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">NA Ireland</string>
+    <string name="title_activity_main">NA Ireland</string>
+    <string name="package_name">ie.nasouth.android.naireland</string>
+    <string name="custom_url_scheme">ie.nasouth.android.naireland</string>
+</resources>
