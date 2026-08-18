@@ -31,6 +31,8 @@ jobs:
           node-version: 24
           cache: npm
 
+      - run: npm install -g npm@11.17.0
+
       # AGP 8.13 requires JDK 17+; 21 is the current LTS and what the project
       # builds against locally.
       - uses: actions/setup-java@v5

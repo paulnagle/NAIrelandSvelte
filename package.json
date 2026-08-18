@@ -4,6 +4,7 @@
   "version": "6.0.0",
   "license": "MIT",
   "type": "module",
+  "packageManager": "npm@11.17.0",
   "author": "NA Ireland",
   "homepage": "https://na-ireland.org/",
   "description": "Cross-platform NA Ireland meeting search built on the BMLT, in SvelteKit + Capacitor.",
