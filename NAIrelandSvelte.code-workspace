@@ -1,0 +1,21 @@
+{
+	"folders": [
+		{
+			"name": "NAIrelandSvelte",
+			"path": "."
+		},
+		{
+			"name": "static",
+			"path": "../BMLTSearchSvelte/static"
+		},
+		{
+			"name": ".github",
+			"path": "../BMLTSearchSvelte/.github"
+		},
+		{
+			"name": "src",
+			"path": "../BMLTSearchSvelte/src"
+		}
+	],
+	"settings": {}
+}
