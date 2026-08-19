@@ -110,7 +110,7 @@
   <!-- ── County list ─────────────────────────────────────────────────────── -->
   {#if countyStatus === 'loading'}
     <div class="flex h-full items-center justify-center py-20">
-      <div class="h-10 w-10 animate-spin rounded-full border-4 border-[#000090] border-t-transparent"></div>
+      <div class="h-10 w-10 animate-spin rounded-full border-4 border-[#000090] border-t-transparent dark:border-blue-400"></div>
     </div>
   {:else if countyStatus === 'error'}
     <div class="flex flex-col items-center gap-4 px-6 py-20 text-center">
@@ -126,10 +126,10 @@
           class="focusable flex w-full items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-left shadow-sm active:brightness-95"
         >
           <!-- Location pin icon -->
-          <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#000090]/10">
+          <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#000090]/10 dark:bg-blue-400/20">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4 text-[#000090]"
+              class="h-4 w-4 text-[#000090] dark:text-blue-400"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -140,7 +140,12 @@
             >
               {#if county === ''}
                 <!-- Video icon for Online -->
-                <path d="M18 8h1a4 4 0 0 1 0 8h-1" /><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" /><line x1="6" y1="1" x2="6" y2="4" /><line x1="10" y1="1" x2="10" y2="4" /><line x1="14" y1="1" x2="14" y2="4" />
+                <path d="M18 8h1a4 4 0 0 1 0 8h-1" /><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" /><line x1="6" y1="1" x2="6" y2="4" /><line x1="10" y1="1" x2="10" y2="4" /><line
+                  x1="14"
+                  y1="1"
+                  x2="14"
+                  y2="4"
+                />
               {:else}
                 <!-- Map pin for counties -->
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
@@ -172,7 +177,7 @@
   <!-- ── Meeting list ─────────────────────────────────────────────────────── -->
   <!-- Back button injected via pageTitle effect; provide inline back row -->
   <div class="flex items-center border-b border-[var(--border)] px-2 py-2">
-    <button type="button" onclick={goBack} class="focusable flex items-center gap-1 rounded px-2 py-1 text-sm text-[#000090]" aria-label="Back to county list">
+    <button type="button" onclick={goBack} class="focusable flex items-center gap-1 rounded px-2 py-1 text-sm text-[#000090] dark:text-blue-400" aria-label="Back to county list">
       <!-- Chevron left -->
       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <polyline points="15 18 9 12 15 6" />
@@ -184,7 +189,7 @@
 
   {#if meetingStatus === 'loading'}
     <div class="flex h-full items-center justify-center py-20">
-      <div class="h-10 w-10 animate-spin rounded-full border-4 border-[#000090] border-t-transparent"></div>
+      <div class="h-10 w-10 animate-spin rounded-full border-4 border-[#000090] border-t-transparent dark:border-blue-400"></div>
     </div>
   {:else if meetingStatus === 'error'}
     <div class="flex flex-col items-center gap-4 px-6 py-20 text-center">

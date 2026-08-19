@@ -46,12 +46,7 @@ export interface WpPost {
 export function getPostImage(post: WpPost): string | null {
   const media = post._embedded?.['wp:featuredmedia']?.[0];
   if (media) {
-    return (
-      media.media_details?.sizes?.medium?.source_url ??
-      media.media_details?.sizes?.full?.source_url ??
-      media.source_url ??
-      null
-    );
+    return media.media_details?.sizes?.medium?.source_url ?? media.media_details?.sizes?.full?.source_url ?? media.source_url ?? null;
   }
   // Fallback: parse first <img src> from content HTML
   const match = post.content.rendered.match(/<img[^>]+src="([^"]+)"/);

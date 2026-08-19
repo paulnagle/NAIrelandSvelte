@@ -113,6 +113,10 @@
     line-height: 1.6;
   }
 
+  :global(html.dark .jft-content tr:nth-child(4) td i) {
+    border-left-color: #60a5fa; /* blue-400 */
+  }
+
   /* Source attribution (e.g. "Basic Text, p. 56") */
   :global(.jft-content td[align='center']:not(:has(h1)):not(:has(h2)):not(:last-child)) {
     font-size: 0.8rem;
@@ -133,6 +137,10 @@
   /* "Just for Today:" affirmation — bold lead-in */
   :global(.jft-content td[align='left'] b) {
     color: #000090;
+  }
+
+  :global(html.dark .jft-content td[align='left'] b) {
+    color: #60a5fa; /* blue-400 */
   }
 
   /* Copyright footer */

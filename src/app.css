@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 
+/* Use the `dark` class on <html> for dark-mode variants, not the OS media query. */
+@custom-variant dark (&:where(html.dark, html.dark *));
+
 /* NA Ireland design tokens.
    The palette is carried over from the Ionic build's theme/variables.scss so the
    rebuild is recognisably the same app: NA Ireland deep blue as the primary, and
@@ -45,15 +48,13 @@
   --text-muted: #5b6b7c;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --surface: #12171d;
-    --surface-raised: #1b222b;
-    --surface-sunken: #0c1015;
-    --border: #2c3641;
-    --text: #e8edf3;
-    --text-muted: #97a6b6;
-  }
+html.dark {
+  --surface: #12171d;
+  --surface-raised: #1b222b;
+  --surface-sunken: #0c1015;
+  --border: #2c3641;
+  --text: #e8edf3;
+  --text-muted: #97a6b6;
 }
 
 @theme inline {

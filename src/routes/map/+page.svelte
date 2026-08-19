@@ -634,7 +634,7 @@
           </button>
         {/if}
         <!-- Locate me button -->
-        <button type="button" onclick={locateMe} class="shrink-0 rounded-full p-1 text-[#000090] hover:bg-[var(--surface-sunken)]" aria-label={t('LOCATING')}>
+        <button type="button" onclick={locateMe} class="shrink-0 rounded-full p-1 text-[#000090] hover:bg-[var(--surface-sunken)] dark:text-blue-400" aria-label={t('LOCATING')}>
           <LocateFixed class="h-5 w-5" />
         </button>
       </div>
@@ -662,7 +662,7 @@
     {#if searching}
       <div class="absolute bottom-24 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[var(--surface-raised)] px-4 py-2 shadow-md" role="status" aria-live="polite">
         <span class="flex items-center gap-2 text-xs text-[var(--text-muted)]">
-          <span class="h-3 w-3 animate-spin rounded-full border-2 border-[#000090] border-t-transparent"></span>
+          <span class="h-3 w-3 animate-spin rounded-full border-2 border-[#000090] border-t-transparent dark:border-blue-400"></span>
           {t('FINDING_MTGS')}
         </span>
       </div>

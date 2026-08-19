@@ -142,23 +142,14 @@
         <!-- Day accordion card -->
         <div class="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-sm">
           <!-- Day header button -->
-          <button
-            type="button"
-            onclick={() => toggleDay(group.weekday)}
-            class="focusable flex w-full items-center gap-3 px-4 py-3 text-left"
-            aria-expanded={isOpen}
-          >
+          <button type="button" onclick={() => toggleDay(group.weekday)} class="focusable flex w-full items-center gap-3 px-4 py-3 text-left" aria-expanded={isOpen}>
             <!-- Weekday colour swatch -->
-            <span
-              class="h-8 w-1.5 shrink-0 rounded-full"
-              style="background-color: {colorVar};"
-              aria-hidden="true"
-            ></span>
+            <span class="h-8 w-1.5 shrink-0 rounded-full" style="background-color: {colorVar};" aria-hidden="true"></span>
 
             <span class="flex-1 font-semibold text-[var(--text)]">
               {t(DAY_KEYS[group.weekday] ?? 'SUNDAY')}
               {#if isToday}
-                <span class="ml-2 rounded-full bg-[#000090] px-2 py-0.5 text-xs font-semibold text-white">today</span>
+                <span class="ml-2 rounded-full bg-[#000090] px-2 py-0.5 text-xs font-semibold text-white dark:bg-blue-500">today</span>
               {/if}
             </span>
 

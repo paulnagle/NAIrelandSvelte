@@ -67,19 +67,19 @@
       <p class="mb-1 text-xs font-semibold tracking-wider text-[var(--text-muted)] uppercase">
         {t('CLEANTIMEINDAYS')}
       </p>
-      <p class="mb-3 text-2xl font-bold text-[#000090]">{cleanTime.totalDays}</p>
+      <p class="mb-3 text-2xl font-bold text-[#000090] dark:text-blue-400">{cleanTime.totalDays}</p>
 
       <div class="flex gap-6 text-center">
         <div class="flex-1">
-          <p class="text-2xl font-bold text-[#000090]">{cleanTime.years}</p>
+          <p class="text-2xl font-bold text-[#000090] dark:text-blue-400">{cleanTime.years}</p>
           <p class="text-xs text-[var(--text-muted)]">{t('YEARS')}</p>
         </div>
         <div class="flex-1">
-          <p class="text-2xl font-bold text-[#000090]">{cleanTime.months}</p>
+          <p class="text-2xl font-bold text-[#000090] dark:text-blue-400">{cleanTime.months}</p>
           <p class="text-xs text-[var(--text-muted)]">{t('MONTHS')}</p>
         </div>
         <div class="flex-1">
-          <p class="text-2xl font-bold text-[#000090]">{cleanTime.days}</p>
+          <p class="text-2xl font-bold text-[#000090] dark:text-blue-400">{cleanTime.days}</p>
           <p class="text-xs text-[var(--text-muted)]">{t('DAYS')}</p>
         </div>
       </div>
@@ -89,8 +89,8 @@
   <!-- Keytag milestone card -->
   {#if cleanTag !== null && cleanTag.tag !== 'none'}
     <div class="flex flex-col items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4 text-center">
-      <p class="text-lg font-semibold text-[#000090]">{t('BIRTHDAY')}</p>
-      <p class="text-base font-bold text-[#000090]">
+      <p class="text-lg font-semibold text-[#000090] dark:text-blue-400">{t('BIRTHDAY')}</p>
+      <p class="text-base font-bold text-[#000090] dark:text-blue-400">
         {cleanTag.amount}{t(cleanTag.tag)}
       </p>
       <img src={cleanTag.image} alt="{cleanTag.amount} {t(cleanTag.tag)}" class="h-32 w-32 object-contain" />

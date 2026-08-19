@@ -37,7 +37,7 @@
 
 {#if status === 'loading'}
   <div class="flex h-full items-center justify-center py-20">
-    <div class="h-10 w-10 animate-spin rounded-full border-4 border-[#000090] border-t-transparent"></div>
+    <div class="h-10 w-10 animate-spin rounded-full border-4 border-[#000090] border-t-transparent dark:border-blue-400"></div>
   </div>
 {:else if status === 'error'}
   <div class="flex flex-col items-center gap-4 px-6 py-20 text-center">
@@ -52,7 +52,7 @@
       {@const imageUrl = getPostImage(post)}
       <article class="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-sm">
         <div class="p-4 pb-0">
-          <h2 class="selectable mb-1 text-base font-semibold text-[#000090]">
+          <h2 class="selectable mb-1 text-base font-semibold text-[#000090] dark:text-blue-400">
             {@html post.title.rendered}
           </h2>
           <p class="mb-2 text-xs font-medium text-[var(--text-muted)]">{formatDate(post.date)}</p>

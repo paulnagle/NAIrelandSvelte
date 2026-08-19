@@ -63,7 +63,7 @@
 
 {#if status === 'loading'}
   <div class="flex h-full items-center justify-center py-20">
-    <div class="h-10 w-10 animate-spin rounded-full border-4 border-[#000090] border-t-transparent"></div>
+    <div class="h-10 w-10 animate-spin rounded-full border-4 border-[#000090] border-t-transparent dark:border-blue-400"></div>
   </div>
 {:else if status === 'error'}
   <div class="flex flex-col items-center gap-4 px-6 py-20 text-center">
@@ -74,7 +74,6 @@
   </div>
 {:else}
   <div class="space-y-6 px-4 py-4">
-
     <!-- Service group cards -->
     <section>
       <p class="mb-3 text-sm font-semibold tracking-wider text-[var(--text-muted)] uppercase">
@@ -83,7 +82,7 @@
       <div class="space-y-3">
         {#each groups as group, i (i)}
           <div class="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-4">
-            <h2 class="mb-1 text-base font-semibold text-[#000090]">{group.name}</h2>
+            <h2 class="mb-1 text-base font-semibold text-[#000090] dark:text-blue-400">{group.name}</h2>
 
             {#if group.description}
               <p class="selectable mb-3 text-sm text-[var(--text-muted)]">{group.description}</p>
@@ -91,20 +90,14 @@
 
             <div class="space-y-2">
               {#if group.url}
-                <button
-                  onclick={() => openUrl(group.url)}
-                  class="focusable flex items-center gap-2 text-sm text-[#000090]"
-                >
+                <button onclick={() => openUrl(group.url)} class="focusable flex items-center gap-2 text-sm text-[#000090] dark:text-blue-400">
                   <Globe size={15} strokeWidth={1.75} />
                   <span class="underline underline-offset-2">{group.url}</span>
                 </button>
               {/if}
 
               {#if group.helpline}
-                <a
-                  href="tel:{group.helpline}"
-                  class="selectable focusable flex items-center gap-2 text-sm text-[#000090]"
-                >
+                <a href="tel:{group.helpline}" class="selectable focusable flex items-center gap-2 text-sm text-[#000090] dark:text-blue-400">
                   <Phone size={15} strokeWidth={1.75} />
                   <span class="underline underline-offset-2">{group.helpline}</span>
                 </a>
@@ -123,10 +116,7 @@
       <div class="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]">
         <div class="divide-y divide-[var(--border)]">
           {#each APP_LINKS as link, i (i)}
-            <button
-              onclick={() => openUrl(link.url)}
-              class="focusable flex w-full items-center justify-between px-4 py-3 text-left active:bg-[var(--surface-sunken)]"
-            >
+            <button onclick={() => openUrl(link.url)} class="focusable flex w-full items-center justify-between px-4 py-3 text-left active:bg-[var(--surface-sunken)]">
               <span class="text-sm text-[var(--text)]">{t(link.key)}</span>
               <ExternalLink size={15} strokeWidth={1.75} class="shrink-0 text-[var(--text-muted)]" />
             </button>
@@ -140,6 +130,5 @@
         {/if}
       </div>
     </section>
-
   </div>
 {/if}

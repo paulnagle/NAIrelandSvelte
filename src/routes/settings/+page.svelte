@@ -9,6 +9,45 @@
 </script>
 
 <div class="divide-y divide-[var(--border)]">
+  <!-- Appearance / theme -->
+  <div class="px-4 py-4">
+    <p class="mb-3 text-sm font-semibold tracking-wider text-[var(--text-muted)] uppercase">
+      {t('THEME')}
+    </p>
+    <div class="flex gap-3">
+      <button
+        type="button"
+        onclick={() => {
+          settings.theme = 'light';
+        }}
+        class="focusable flex-1 rounded-md border py-2 text-sm font-semibold transition-colors
+          {settings.theme === 'light' ? 'border-[#000090] bg-[#000090] text-white' : 'border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)]'}"
+      >
+        {t('THEME_LIGHT')}
+      </button>
+      <button
+        type="button"
+        onclick={() => {
+          settings.theme = 'dark';
+        }}
+        class="focusable flex-1 rounded-md border py-2 text-sm font-semibold transition-colors
+          {settings.theme === 'dark' ? 'border-[#000090] bg-[#000090] text-white' : 'border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)]'}"
+      >
+        {t('THEME_DARK')}
+      </button>
+      <button
+        type="button"
+        onclick={() => {
+          settings.theme = 'system';
+        }}
+        class="focusable flex-1 rounded-md border py-2 text-sm font-semibold transition-colors
+          {settings.theme === 'system' ? 'border-[#000090] bg-[#000090] text-white' : 'border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)]'}"
+      >
+        {t('THEME_SYSTEM')}
+      </button>
+    </div>
+  </div>
+
   <!-- Language -->
   <div class="px-4 py-4">
     <p class="mb-3 text-sm font-semibold tracking-wider text-[var(--text-muted)] uppercase">

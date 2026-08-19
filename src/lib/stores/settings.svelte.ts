@@ -9,6 +9,7 @@
 type Language = 'en' | 'ie';
 type TimeDisplay = '12hr' | '24hr';
 type DistanceUnit = 'kms' | 'miles';
+export type Theme = 'light' | 'dark' | 'system';
 
 function readString<T extends string>(key: string, fallback: T): T {
   if (typeof localStorage === 'undefined') return fallback;
@@ -26,6 +27,7 @@ class SettingsStore {
   #timeDisplay = $state<TimeDisplay>(readString<TimeDisplay>('timeDisplay', '12hr'));
   #distanceUnit = $state<DistanceUnit>(readString<DistanceUnit>('distanceUnit', 'kms'));
   #cleanDate = $state<string | null>(readNullableString('cleanDate'));
+  #theme = $state<Theme>(readString<Theme>('theme', 'system'));
 
   get language(): Language {
     return this.#language;
@@ -57,6 +59,17 @@ class SettingsStore {
     this.#distanceUnit = value;
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('distanceUnit', value);
+    }
+  }
+
+  get theme(): Theme {
+    return this.#theme;
+  }
+
+  set theme(value: Theme) {
+    this.#theme = value;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('theme', value);
     }
   }
 
