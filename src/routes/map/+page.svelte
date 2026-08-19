@@ -84,12 +84,6 @@
   /** Whether to show the "Search this area" button. True after any camera move. */
   let showSearchHere = $state(false);
 
-  /**
-   * Set to true on mount; consumed by the first cameraIdle to trigger the
-   * initial search automatically. All subsequent idles only show the button.
-   */
-  let initialSearch = false;
-
   /** Native-only: IDs of currently displayed markers tracked for removal. */
   let currentMarkerIds: string[] = [];
 
@@ -174,12 +168,7 @@
       const sw = bounds.getSouthWest();
       idleBounds = { centerLat: center.lat(), centerLng: center.lng(), swLat: sw.lat(), swLng: sw.lng() };
 
-      if (initialSearch) {
-        initialSearch = false;
-        searchThisArea();
-      } else {
-        showSearchHere = true;
-      }
+      showSearchHere = true;
     });
   }
 
@@ -226,12 +215,7 @@
       const sw = event.bounds.southwest;
       idleBounds = { centerLat: center.lat, centerLng: center.lng, swLat: sw.lat, swLng: sw.lng };
 
-      if (initialSearch) {
-        initialSearch = false;
-        searchThisArea();
-      } else {
-        showSearchHere = true;
-      }
+      showSearchHere = true;
     });
 
     gmap.setOnMarkerClickListener((event) => {
@@ -307,9 +291,9 @@
 
   /**
    * Group co-located meetings into buckets keyed by rounded lat/lng (~111m).
-   * Two meetings at the same venue share one marker; the title carries all IDs.
+   * Two meetings at the same venue share one marker; meetingIds carries all IDs.
    */
-  function groupMeetings(meetings: Meeting[]): Array<{ lat: number; lng: number; title: string }> {
+  function groupMeetings(meetings: Meeting[]): Array<{ lat: number; lng: number; meetingIds: string }> {
     // SvelteMap used so the svelte/prefer-svelte-reactivity lint rule is satisfied.
     // Nothing renders from this map.
     const groups = new SvelteMap<string, Meeting[]>();
@@ -326,7 +310,7 @@
       lat: parseFloat(bucket[0].latitude),
       lng: parseFloat(bucket[0].longitude),
       // IDs joined so they can be passed directly to getMeetingsByIds().
-      title: bucket.map((m) => m.id_bigint).join('&meeting_ids[]=')
+      meetingIds: bucket.map((m) => m.id_bigint).join('&meeting_ids[]=')
     }));
   }
 
@@ -350,9 +334,9 @@
     if (!gmap || meetings.length === 0) return;
 
     const groups = groupMeetings(meetings);
-    const markerDefs = groups.map(({ lat, lng, title }) => ({
+    const markerDefs = groups.map(({ lat, lng, meetingIds }) => ({
       coordinate: { lat, lng },
-      title,
+      title: meetingIds,
       // iconUrl skips the plugin's PinElement/glyph path, avoiding deprecation warnings.
       iconUrl: '/marker-blue.png',
       iconSize: { width: 70, height: 84 },
@@ -435,7 +419,7 @@
     const groups = groupMeetings(meetings);
     const AdvancedMarkerElement = google.maps.marker.AdvancedMarkerElement;
 
-    const markers = groups.map(({ lat, lng, title }) => {
+    const markers = groups.map(({ lat, lng, meetingIds }) => {
       const img = document.createElement('img');
       img.src = '/marker-blue.png';
       img.width = 70;
@@ -445,12 +429,11 @@
       const marker = new AdvancedMarkerElement({
         position: { lat, lng },
         content: img,
-        title,
         zIndex: 1
       });
 
       marker.addListener('click', () => {
-        openDetail(title);
+        openDetail(meetingIds);
       });
 
       return marker;
@@ -633,15 +616,10 @@
     const DUBLIN_LAT = 53.3498;
     const DUBLIN_LNG = -6.2603;
 
-    // Arm the one-shot initial search before the map starts firing idle events.
-    initialSearch = true;
-
     // Fire GPS and map creation concurrently.
     const [, pos] = await Promise.allSettled([createMap(DUBLIN_LAT, DUBLIN_LNG), Geolocation.getCurrentPosition({ timeout: 5000 })]);
 
-    // If GPS resolved, move the camera. The next idle will fire the initial
-    // search (initialSearch is still true if GPS beat the first idle, which is
-    // unlikely but possible on very fast devices with a warm GPS fix).
+    // If GPS resolved, move the camera.
     if (pos.status === 'fulfilled') {
       moveCamera(pos.value.coords.latitude, pos.value.coords.longitude, 10);
     }
