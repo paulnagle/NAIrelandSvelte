@@ -157,9 +157,4 @@
     color: var(--text-muted);
     text-decoration: none;
   }
-
-  /* Suppress the inline <script> tag content from rendering as text */
-  :global(.jft-content script) {
-    display: none;
-  }
 </style>
