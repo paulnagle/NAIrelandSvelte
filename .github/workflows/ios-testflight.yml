@@ -252,14 +252,12 @@ jobs:
         run: |
           set -euo pipefail
           IPA="$(find "$RUNNER_TEMP/export" -name '*.ipa' -maxdepth 1 | head -1)"
-          test -n "$IPA" || { echo "::error::No .ipa found in $RUNNER_TEMP/export"; exit 1; }
-          # --upload-app does a lookupGenericSettingsForSubmission pre-flight that
-          # always returns Unauthenticated on headless runners. --upload-package
-          # skips that lookup and goes straight to the binary upload endpoint,
-          # using the same API key credentials.
-          xcrun altool --upload-package "$IPA" \
-            --api-key "$ASC_KEY_ID" \
-            --api-issuer "$ASC_ISSUER_ID"
+          test -n "$IPA" || { echo "No .ipa produced"; exit 1; }
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA" \
+            --apiKey "$ASC_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID"
 
       - name: Upload artifacts
         if: always()
