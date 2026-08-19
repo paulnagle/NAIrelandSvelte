@@ -68,5 +68,7 @@
 	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>NA Ireland uses your location to find meetings near you.</string>
 </dict>
 </plist>
