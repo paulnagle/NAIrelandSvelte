@@ -23,7 +23,6 @@ const config: CapacitorConfig = {
   },
   ios: {
     scheme: 'NA Ireland',
-    contentInset: 'never',
     backgroundColor: '#000090'
   },
   android: {

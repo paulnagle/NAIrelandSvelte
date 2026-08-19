@@ -7,9 +7,7 @@
  * (iOS/Android); this function handles it for web visitors.
  */
 export async function onRequestGet(): Promise<Response> {
-  const upstream = await fetch(
-    'https://www.na-ireland.org/wp-json/wp/v2/posts?categories=9'
-  );
+  const upstream = await fetch('https://www.na-ireland.org/wp-json/wp/v2/posts?categories=9');
 
   if (!upstream.ok) {
     return new Response('Failed to fetch posts', { status: upstream.status });
