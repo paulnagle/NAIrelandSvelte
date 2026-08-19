@@ -16,9 +16,19 @@
   --color-warning: #b57e00;
   --color-success: #0e9f4f;
 
-  /* Weekday accents. Every one of these is a light wash carrying dark text, in
-     both themes — they are identity, not surface, and re-deriving them per
-     theme would break the "Tuesday is yellow" recognition the app trades on. */
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Surfaces are CSS variables rather than @theme tokens so a single
+   prefers-color-scheme block can re-point all of them at once.
+
+   Weekday accents live here too rather than in @theme: Tailwind 4 tree-shakes
+   @theme tokens and only emits a variable when it detects a matching utility
+   class in the source. These colours are applied only via inline style
+   attributes in WeekdayBadge, which Tailwind never scans, so they were silently
+   dropped from the compiled output for most days. Declared here they are always
+   present. They are identity tokens that never change between themes. */
+:root {
   --color-sunday: #ff7e79;
   --color-monday: #ffd479;
   --color-tuesday: #fffc79;
@@ -27,12 +37,6 @@
   --color-friday: #73fdff;
   --color-saturday: #73fa79;
 
-  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
-}
-
-/* Surfaces are CSS variables rather than @theme tokens so a single
-   prefers-color-scheme block can re-point all of them at once. */
-:root {
   --surface: #f2f4f7;
   --surface-raised: #ffffff;
   --surface-sunken: #e4e8ee;

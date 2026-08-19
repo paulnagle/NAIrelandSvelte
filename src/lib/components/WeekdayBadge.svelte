@@ -21,8 +21,8 @@
   const DAY_KEYS = ['', 'SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as const;
   const DAY_COLORS = ['', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
 
-  const dayKey = $derived(DAY_KEYS[weekday] ?? 'SUNDAY');
-  const colorVar = $derived(`var(--color-${DAY_COLORS[weekday] ?? 'sunday'})`);
+  const dayKey = $derived(DAY_KEYS[weekday] || 'SUNDAY');
+  const colorVar = $derived(`var(--color-${DAY_COLORS[weekday] || 'sunday'})`);
   const dayName = $derived(t(dayKey));
 </script>
 
