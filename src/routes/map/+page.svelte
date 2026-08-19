@@ -76,14 +76,19 @@
   let pendingCamera: { lat: number; lng: number; zoom: number } | null = null;
 
   /**
-   * One-shot flag. Set to true before camera moves that should trigger a search
-   * (GPS fix arrival, place selection). Left false for marker-tap recentering so
-   * tapping a pin does not rebuild the very markers the user just tapped.
+   * The camera bounds captured on the last cameraIdle event.
+   * Used by searchThisArea() so it always searches the currently visible region.
    */
-  let searchAfterMove = true;
+  let idleBounds: { centerLat: number; centerLng: number; swLat: number; swLng: number } | null = null;
 
-  /** Timestamp of the last getMeetings call — used to debounce rapid idle events. */
-  let debounceTimestamp = 0;
+  /** Whether to show the "Search this area" button. True after any camera move. */
+  let showSearchHere = $state(false);
+
+  /**
+   * Set to true on mount; consumed by the first cameraIdle to trigger the
+   * initial search automatically. All subsequent idles only show the button.
+   */
+  let initialSearch = false;
 
   /** Native-only: IDs of currently displayed markers tracked for removal. */
   let currentMarkerIds: string[] = [];
@@ -102,6 +107,13 @@
 
   /** Whether a search is in progress (shows spinner). */
   let searching = $state(false);
+
+  /** Whether a marker tap is being loaded (shows tap-feedback spinner). */
+  let detailLoading = $state(false);
+
+  /** Last full batch of meetings returned by getRadiusMeetings — used to
+   *  resolve marker taps locally without a second network request. */
+  let lastFetchedMeetings: Meeting[] = [];
 
   /** Meetings fetched for the open detail panel. */
   let detailMeetings = $state<Meeting[]>([]);
@@ -150,14 +162,8 @@
     });
 
     webGoogleMap.addListener('idle', () => {
-      if (!searchAfterMove) {
-        searchAfterMove = true;
-        return;
-      }
-
       const zoom = webGoogleMap!.getZoom() ?? 8;
       if (zoom <= 7) {
-        searchAfterMove = false;
         webGoogleMap!.setZoom(8);
         return;
       }
@@ -166,7 +172,14 @@
       if (!bounds) return;
       const center = bounds.getCenter();
       const sw = bounds.getSouthWest();
-      getMeetings(center.lat(), center.lng(), sw.lat(), sw.lng());
+      idleBounds = { centerLat: center.lat(), centerLng: center.lng(), swLat: sw.lat(), swLng: sw.lng() };
+
+      if (initialSearch) {
+        initialSearch = false;
+        searchThisArea();
+      } else {
+        showSearchHere = true;
+      }
     });
   }
 
@@ -204,26 +217,24 @@
         }
       }
 
-      if (!searchAfterMove) {
-        searchAfterMove = true;
-        return;
-      }
-
       if (event.zoom <= 7) {
-        searchAfterMove = false;
         gmap?.setCamera({ zoom: 8 });
         return;
       }
 
       const center = event.bounds.center;
       const sw = event.bounds.southwest;
-      getMeetings(center.lat, center.lng, sw.lat, sw.lng);
+      idleBounds = { centerLat: center.lat, centerLng: center.lng, swLat: sw.lat, swLng: sw.lng };
+
+      if (initialSearch) {
+        initialSearch = false;
+        searchThisArea();
+      } else {
+        showSearchHere = true;
+      }
     });
 
     gmap.setOnMarkerClickListener((event) => {
-      // Do NOT search on the camera idle that follows a marker tap: the map
-      // recenters on the tapped marker, which would rebuild the pins mid-read.
-      searchAfterMove = false;
       openDetail(event.title ?? '');
     });
   }
@@ -241,14 +252,15 @@
 
   // ── Meeting search ─────────────────────────────────────────────────────────
 
-  function getMeetings(centerLat: number, centerLng: number, swLat: number, swLng: number): void {
-    const now = Date.now();
-    if (debounceTimestamp !== 0 && now - debounceTimestamp < 1000) {
-      debounceTimestamp = now;
-      return;
-    }
-    debounceTimestamp = now;
+  /** Called by the "Search this area" button and by programmatic moves with intent. */
+  function searchThisArea(): void {
+    if (!idleBounds) return;
+    showSearchHere = false;
+    const { centerLat, centerLng, swLat, swLng } = idleBounds;
+    doGetMeetings(centerLat, centerLng, swLat, swLng);
+  }
 
+  function doGetMeetings(centerLat: number, centerLng: number, swLat: number, swLng: number): void {
     // Compute search radius from center to SW corner of visible bounds.
     // google.maps is available because loadMapsApi() ran on web, or because
     // @capacitor/google-maps injects it on native.
@@ -264,14 +276,15 @@
 
     getRadiusMeetings(centerLat, centerLng, radiusKm)
       .then(async (meetings) => {
+        lastFetchedMeetings = meetings as Meeting[];
         await removeMarkers();
-        await addMarkers(meetings as Meeting[]);
+        await addMarkers(lastFetchedMeetings);
 
         // Resolve format names for the fetched batch.
         // SvelteSet used here so the svelte/prefer-svelte-reactivity lint rule is satisfied.
         // Nothing renders from this set — it is just an accumulator for format ID deduplication.
         const allIds = new SvelteSet<string>();
-        for (const m of meetings) {
+        for (const m of lastFetchedMeetings) {
           for (const id of m.format_shared_id_list.split(',')) {
             const trimmed = id.trim();
             if (trimmed) allIds.add(trimmed);
@@ -286,6 +299,7 @@
       })
       .finally(() => {
         searching = false;
+        showSearchHere = false;
       });
   }
 
@@ -371,11 +385,38 @@
       img.height = 84;
       img.style.display = 'block';
 
+      // The count is shown as a solid pill badge above the pin rather than
+      // overlaid on the NA logo, so both are clearly readable.
+      if (isCluster) {
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'position:relative;display:inline-block;text-align:center;';
+
+        const badge = document.createElement('div');
+        badge.textContent = String(count);
+        badge.style.cssText =
+          'display:inline-block;margin-bottom:2px;' +
+          'background:#b91c1c;color:#fff;' +
+          'font-size:12px;font-weight:700;line-height:1;' +
+          'padding:3px 7px;border-radius:999px;' +
+          'border:2px solid #fff;' +
+          'box-shadow:0 1px 3px rgba(0,0,0,.45);' +
+          'pointer-events:none;white-space:nowrap;';
+
+        wrapper.appendChild(badge);
+        wrapper.appendChild(img);
+        return new google.maps.marker.AdvancedMarkerElement({
+          map,
+          position,
+          content: wrapper,
+          zIndex: 1000 + count
+        });
+      }
+
       return new google.maps.marker.AdvancedMarkerElement({
         map,
         position,
         content: img,
-        zIndex: isCluster ? 1000 + count : 1
+        zIndex: 1
       });
     }
   };
@@ -409,7 +450,6 @@
       });
 
       marker.addListener('click', () => {
-        searchAfterMove = false;
         openDetail(title);
       });
 
@@ -428,12 +468,31 @@
 
   async function openDetail(meetingIds: string): Promise<void> {
     if (!meetingIds) return;
+
+    // Try to resolve meetings from the last fetched batch without a network
+    // round-trip. The marker title encodes IDs as "1&meeting_ids[]=2&...", so
+    // split on the separator to recover them.
+    const ids = meetingIds
+      .split('&meeting_ids[]=')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const cached = lastFetchedMeetings.filter((m) => ids.includes(m.id_bigint));
+    if (cached.length > 0) {
+      detailMeetings = cached;
+      detailOpen = true;
+      return;
+    }
+
+    // Fallback: fetch from BMLT (e.g. cold open from a deep-link or stale cache).
+    detailLoading = true;
     try {
       const meetings = await getMeetingsByIds(meetingIds);
       detailMeetings = meetings as Meeting[];
       detailOpen = true;
     } catch (err) {
       console.error('getMeetingsByIds failed:', err);
+    } finally {
+      detailLoading = false;
     }
   }
 
@@ -444,13 +503,19 @@
 
   // ── Locate me ──────────────────────────────────────────────────────────────
 
+  /** Shown when locateMe fails — cleared after 3 s. */
+  let locationError = $state(false);
+
   async function locateMe(): Promise<void> {
     try {
       const pos = await Geolocation.getCurrentPosition();
-      searchAfterMove = true;
       moveCamera(pos.coords.latitude, pos.coords.longitude, 10);
     } catch (err) {
       console.error('Geolocation failed:', err);
+      locationError = true;
+      setTimeout(() => {
+        locationError = false;
+      }, 3000);
     }
   }
 
@@ -503,7 +568,6 @@
       : await geocodeWebPlace(item.placeId, item.description);
 
     if (coords) {
-      searchAfterMove = true;
       moveCamera(coords.lat, coords.lng, 10);
     }
   }
@@ -563,19 +627,24 @@
       await loadMapsApi();
     }
 
-    // Start at Dublin as default; overwrite immediately if GPS succeeds.
-    let startLat = 53.3498;
-    let startLng = -6.2603;
+    // Start the map immediately at the Dublin default so the user sees a map
+    // straight away rather than waiting up to 5 s for GPS. GPS runs in parallel
+    // and moves the camera (and triggers the first search) when it resolves.
+    const DUBLIN_LAT = 53.3498;
+    const DUBLIN_LNG = -6.2603;
 
-    try {
-      const pos = await Geolocation.getCurrentPosition({ timeout: 5000 });
-      startLat = pos.coords.latitude;
-      startLng = pos.coords.longitude;
-    } catch {
-      // GPS unavailable — proceed with Dublin default.
+    // Arm the one-shot initial search before the map starts firing idle events.
+    initialSearch = true;
+
+    // Fire GPS and map creation concurrently.
+    const [, pos] = await Promise.allSettled([createMap(DUBLIN_LAT, DUBLIN_LNG), Geolocation.getCurrentPosition({ timeout: 5000 })]);
+
+    // If GPS resolved, move the camera. The next idle will fire the initial
+    // search (initialSearch is still true if GPS beat the first idle, which is
+    // unlikely but possible on very fast devices with a warm GPS fix).
+    if (pos.status === 'fulfilled') {
+      moveCamera(pos.value.coords.latitude, pos.value.coords.longitude, 10);
     }
-
-    await createMap(startLat, startLng);
   });
 
   onDestroy(() => {
@@ -611,9 +680,15 @@
     bar and suggestion list use bg-[var(--surface-raised)] for this purpose.
     The map container itself is transparent (the plugin needs this).
   -->
-  <div class="relative w-full flex-1 overflow-hidden">
+  <!--
+    app-main adds padding-bottom to clear the fixed bottom nav on every page.
+    Reclaim that padding with a matching negative margin so the container
+    reaches the bottom of the viewport, then stop the map element itself at the
+    nav bar top edge (3.5rem h-14 + safe area) so it doesn't draw behind the nav.
+  -->
+  <div class="relative -mb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] w-full flex-1 overflow-hidden">
     <!-- Map element — must be in the DOM before GoogleMap.create() is called -->
-    <capacitor-google-map id="map" style="display: block; position: absolute; inset: 0; background: transparent;"></capacitor-google-map>
+    <capacitor-google-map id="map" style="display: block; position: absolute; inset: 0; bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px)); background: transparent;"></capacitor-google-map>
 
     <!-- ── Search bar (opaque on Android) ────────────────────────────────── -->
     <div class="absolute top-2 right-2 left-2 z-10">
@@ -658,13 +733,44 @@
       {/if}
     </div>
 
+    <!-- ── Search this area button ──────────────────────────────────────── -->
+    {#if showSearchHere && !searching}
+      <div class="absolute top-16 left-1/2 z-10 -translate-x-1/2">
+        <button
+          type="button"
+          onclick={searchThisArea}
+          class="flex items-center gap-2 rounded-full bg-[var(--surface-raised)] px-4 py-2 text-sm font-medium text-[var(--text)] shadow-md active:bg-[var(--surface-sunken)]"
+        >
+          <MapPin class="h-4 w-4 shrink-0 text-[#000090] dark:text-blue-400" aria-hidden="true" />
+          {t('SEARCH_THIS_AREA')}
+        </button>
+      </div>
+    {/if}
+
     <!-- ── Searching spinner ─────────────────────────────────────────────── -->
     {#if searching}
       <div class="absolute bottom-24 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[var(--surface-raised)] px-4 py-2 shadow-md" role="status" aria-live="polite">
         <span class="flex items-center gap-2 text-xs text-[var(--text-muted)]">
           <span class="h-3 w-3 animate-spin rounded-full border-2 border-[#000090] border-t-transparent dark:border-blue-400"></span>
+          {t('SEARCHING')}
+        </span>
+      </div>
+    {/if}
+
+    <!-- ── Marker-tap loading indicator ─────────────────────────────────── -->
+    {#if detailLoading}
+      <div class="absolute bottom-24 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[var(--surface-raised)] px-4 py-2 shadow-md" role="status" aria-live="polite">
+        <span class="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+          <span class="h-3 w-3 animate-spin rounded-full border-2 border-[#000090] border-t-transparent dark:border-blue-400"></span>
           {t('FINDING_MTGS')}
         </span>
+      </div>
+    {/if}
+
+    <!-- ── Location error toast ──────────────────────────────────────────── -->
+    {#if locationError}
+      <div class="absolute bottom-24 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[var(--surface-raised)] px-4 py-2 shadow-md" role="alert" aria-live="assertive">
+        <span class="text-xs text-red-600 dark:text-red-400">{t('LOCATION_ERROR')}</span>
       </div>
     {/if}
   </div>

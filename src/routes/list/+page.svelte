@@ -41,6 +41,16 @@
     });
   });
 
+  /**
+   * Translated display labels for the county list. Depends explicitly on
+   * settings.language so the list re-derives when the user switches language —
+   * Svelte 5 does not re-render {#each} items whose source array is unchanged.
+   */
+  const countyLabels = $derived.by(() => {
+    void settings.language; // explicit dependency
+    return counties.map((c) => ({ key: c, label: c === '' ? t('ONLINE') : t(c) }));
+  });
+
   async function loadCounties() {
     countyStatus = 'loading';
     try {
@@ -62,8 +72,11 @@
   let meetings = $state<Meeting[]>([]);
   let formatNames = $state<Record<string, string>>({});
 
-  /** Display label for the selected county ('' → 'Online'). */
-  const countyLabel = $derived(selectedCounty === '' ? 'Online' : selectedCounty);
+  /** Display label for the selected county ('' → localised 'Online'). Re-derives on language change. */
+  const countyLabel = $derived.by(() => {
+    void settings.language; // explicit dependency so this re-derives when language switches
+    return selectedCounty === '' ? t('ONLINE') : t(selectedCounty);
+  });
 
   async function loadMeetings(county: string) {
     selectedCounty = county;
@@ -119,10 +132,10 @@
     </div>
   {:else}
     <div class="flex flex-col gap-2 p-3">
-      {#each counties as county, i (i)}
+      {#each countyLabels as { key, label }, i (i)}
         <button
           type="button"
-          onclick={() => loadMeetings(county)}
+          onclick={() => loadMeetings(key)}
           class="focusable flex w-full items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-left shadow-sm active:brightness-95"
         >
           <!-- Location pin icon -->
@@ -138,7 +151,7 @@
               stroke-linejoin="round"
               aria-hidden="true"
             >
-              {#if county === ''}
+              {#if key === ''}
                 <!-- Video icon for Online -->
                 <path d="M18 8h1a4 4 0 0 1 0 8h-1" /><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" /><line x1="6" y1="1" x2="6" y2="4" /><line x1="10" y1="1" x2="10" y2="4" /><line
                   x1="14"
@@ -153,7 +166,7 @@
             </svg>
           </span>
 
-          <span class="flex-1 text-base font-medium text-[var(--text)]">{county === '' ? 'Online' : county}</span>
+          <span class="flex-1 text-base font-medium text-[var(--text)]">{label}</span>
 
           <!-- Chevron right -->
           <svg

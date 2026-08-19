@@ -49,7 +49,16 @@ export async function autocompletePlaces(input: string, lang: string): Promise<P
       headers,
       data: {
         input,
-        languageCode: lang
+        languageCode: lang,
+        // Bias results toward Ireland; doesn't exclude other countries but
+        // strongly weights Irish results for an Ireland-only app.
+        includedRegionCodes: ['ie'],
+        locationBias: {
+          circle: {
+            center: { latitude: 53.1424, longitude: -7.6921 },
+            radius: 500000.0
+          }
+        }
       }
     });
 
