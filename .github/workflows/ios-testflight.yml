@@ -204,13 +204,22 @@ jobs:
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             ${{ steps.version.outputs.marketing }}
 
-      # ExportOptions.plist ships without a teamID so this public repository
-      # carries no Apple account identifier. It is injected here instead.
-      - name: Set export team
+      # ExportOptions.plist ships without a teamID or provisioningProfiles entry
+      # so this public repository carries no Apple account identifiers. Both are
+      # injected here. The provisioningProfiles map (bundle-id → profile UUID)
+      # tells xcodebuild -exportArchive which on-disk profile to use so that it
+      # never needs to contact the portal — the legacy listTeams.action endpoint
+      # returns 401 on headless runners and causes "requires a provisioning profile".
+      - name: Set export options
         run: |
           set -euo pipefail
-          test -n "$TEAM_ID" || { echo "::error::APPLE_TEAM_ID secret is not set"; exit 1; }
+          test -n "$TEAM_ID"       || { echo "::error::APPLE_TEAM_ID secret is not set"; exit 1; }
+          test -n "$PROFILE_UUID"  || { echo "::error::PROFILE_UUID not set (Install provisioning profile step failed?)"; exit 1; }
           /usr/libexec/PlistBuddy -c "Add :teamID string $TEAM_ID" ios/App/ExportOptions.plist
+          # provisioningProfiles is a dict: bundle-id → profile name or UUID.
+          # Using the UUID is unambiguous; the profile is already on disk by this point.
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" ios/App/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$BUNDLE_ID string $PROFILE_UUID" ios/App/ExportOptions.plist
 
       - name: Export IPA
         env:
@@ -218,11 +227,14 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
         run: |
           set -euo pipefail
+          # -allowProvisioningUpdates is intentionally absent: manual signing with
+          # an explicit provisioningProfiles map requires no portal round-trip, and
+          # the flag causes xcodebuild to call listTeams.action which returns 401
+          # on headless runners, producing "requires a provisioning profile".
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
             -exportOptionsPlist ios/App/ExportOptions.plist \
             -exportPath "$RUNNER_TEMP/export" \
-            -allowProvisioningUpdates \
             -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID"
