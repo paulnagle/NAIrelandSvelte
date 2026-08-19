@@ -10,6 +10,28 @@ import tailwindcss from '@tailwindcss/vite';
 // there for why they can't be inline here.
 
 export default defineConfig({
+  server: {
+    proxy: {
+      // Proxy /api/jft to jftna.org so the browser never makes a cross-origin
+      // request during development. CapacitorHttp handles this natively on
+      // device; the Cloudflare Pages Function handles it in production.
+      '/api/jft': {
+        target: 'https://www.jftna.org',
+        changeOrigin: true,
+        rewrite: () => '/jft/'
+      },
+      '/api/posts': {
+        target: 'https://www.na-ireland.org',
+        changeOrigin: true,
+        rewrite: () => '/wp-json/wp/v2/posts?categories=9'
+      },
+      '/api/conventions': {
+        target: 'https://nasouth.ie',
+        changeOrigin: true,
+        rewrite: () => '/conventions.json'
+      }
+    }
+  },
   // Vite only exposes VITE_-prefixed variables on `import.meta.env`; adding
   // PUBLIC_ lets the Maps keys be read that way instead of through
   // `$env/static/public`.

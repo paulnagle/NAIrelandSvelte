@@ -43,3 +43,19 @@ export async function httpGet<T>(url: string): Promise<T> {
 
   return data as T;
 }
+
+/**
+ * HTTP GET that returns the raw response body as a string, without any
+ * JSON parsing. Used for endpoints that return non-JSON content (e.g. HTML).
+ *
+ * Throws ApiError on any non-200 status.
+ */
+export async function httpGetText(url: string): Promise<string> {
+  const response = await CapacitorHttp.get({ url });
+
+  if (response.status !== 200) {
+    throw new ApiError(response.status, url);
+  }
+
+  return typeof response.data === 'string' ? response.data : String(response.data);
+}
