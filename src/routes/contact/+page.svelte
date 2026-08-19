@@ -4,6 +4,9 @@
   import { getServiceGroups } from '$lib/api/bmlt.js';
   import type { ServiceGroup } from '$lib/api/bmlt.js';
   import { Browser } from '@capacitor/browser';
+  import Globe from '@lucide/svelte/icons/globe';
+  import Phone from '@lucide/svelte/icons/phone';
+  import ExternalLink from '@lucide/svelte/icons/external-link';
 
   type Status = 'loading' | 'loaded' | 'error';
 
@@ -64,59 +67,79 @@
   </div>
 {:else if status === 'error'}
   <div class="flex flex-col items-center gap-4 px-6 py-20 text-center">
-    <p class="text-red-600">{t('CONTACT')} — could not load. Please check your connection.</p>
-    <button onclick={load} class="rounded-md bg-[#000090] px-6 py-2 text-white"> Try again </button>
+    <p class="text-[var(--color-danger)]">{t('CONTACT')} — could not load. Please check your connection.</p>
+    <button onclick={load} class="focusable rounded-md bg-[#000090] px-6 py-2 text-white">
+      {t('TRYAGAIN') || 'Try again'}
+    </button>
   </div>
 {:else}
-  <div class="divide-y">
+  <div class="space-y-6 px-4 py-4">
+
     <!-- Service group cards -->
-    <div class="px-4 pt-4 pb-2">
-      <h2 class="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+    <section>
+      <p class="mb-3 text-sm font-semibold tracking-wider text-[var(--text-muted)] uppercase">
         {t('CONTACT.DETAILS')}
-      </h2>
-    </div>
+      </p>
+      <div class="space-y-3">
+        {#each groups as group, i (i)}
+          <div class="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-4">
+            <h2 class="mb-1 text-base font-semibold text-[#000090]">{group.name}</h2>
 
-    {#each groups as group, i (i)}
-      <div class="p-4">
-        <h3 class="mb-1 text-base font-semibold text-[#000090]">{group.name}</h3>
+            {#if group.description}
+              <p class="selectable mb-3 text-sm text-[var(--text-muted)]">{group.description}</p>
+            {/if}
 
-        {#if group.description}
-          <p class="selectable mb-2 text-sm text-gray-700">{group.description}</p>
-        {/if}
+            <div class="space-y-2">
+              {#if group.url}
+                <button
+                  onclick={() => openUrl(group.url)}
+                  class="focusable flex items-center gap-2 text-sm text-[#000090]"
+                >
+                  <Globe size={15} strokeWidth={1.75} />
+                  <span class="underline underline-offset-2">{group.url}</span>
+                </button>
+              {/if}
 
-        {#if group.url}
-          <button onclick={() => openUrl(group.url)} class="mb-1 block text-sm text-[#000090] underline">
-            {group.url}
-          </button>
-        {/if}
-
-        {#if group.helpline}
-          <a href="tel:{group.helpline}" class="selectable mb-1 block text-sm text-[#000090] underline">
-            {group.helpline}
-          </a>
-        {/if}
+              {#if group.helpline}
+                <a
+                  href="tel:{group.helpline}"
+                  class="selectable focusable flex items-center gap-2 text-sm text-[#000090]"
+                >
+                  <Phone size={15} strokeWidth={1.75} />
+                  <span class="underline underline-offset-2">{group.helpline}</span>
+                </a>
+              {/if}
+            </div>
+          </div>
+        {/each}
       </div>
-    {/each}
+    </section>
 
-    <!-- Static app details section -->
-    <div class="px-4 pt-4 pb-2">
-      <h2 class="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+    <!-- App details -->
+    <section>
+      <p class="mb-3 text-sm font-semibold tracking-wider text-[var(--text-muted)] uppercase">
         {t('CONTACT.APPDETAILS')}
-      </h2>
-    </div>
+      </p>
+      <div class="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)]">
+        <div class="divide-y divide-[var(--border)]">
+          {#each APP_LINKS as link, i (i)}
+            <button
+              onclick={() => openUrl(link.url)}
+              class="focusable flex w-full items-center justify-between px-4 py-3 text-left active:bg-[var(--surface-sunken)]"
+            >
+              <span class="text-sm text-[var(--text)]">{t(link.key)}</span>
+              <ExternalLink size={15} strokeWidth={1.75} class="shrink-0 text-[var(--text-muted)]" />
+            </button>
+          {/each}
+        </div>
 
-    {#each APP_LINKS as link, i (i)}
-      <div class="px-4 py-3">
-        <button onclick={() => openUrl(link.url)} class="text-left text-sm text-[#000090] underline">
-          {t(link.key)}
-        </button>
+        {#if t('CONTACT.NAWSBLURB')}
+          <div class="border-t border-[var(--border)] px-4 py-3">
+            <p class="text-sm text-[var(--text-muted)]">{t('CONTACT.NAWSBLURB')}</p>
+          </div>
+        {/if}
       </div>
-    {/each}
+    </section>
 
-    {#if t('CONTACT.NAWSBLURB')}
-      <div class="px-4 py-3">
-        <p class="text-sm text-gray-600">{t('CONTACT.NAWSBLURB')}</p>
-      </div>
-    {/if}
   </div>
 {/if}

@@ -7,7 +7,6 @@
    * silent-on-mount bug described in AGENTS.md.
    */
   import { page } from '$app/stores';
-  import { t } from '$lib/i18n/index.js';
   import Home from '@lucide/svelte/icons/home';
   import List from '@lucide/svelte/icons/list';
   import MapPin from '@lucide/svelte/icons/map-pin';
@@ -44,19 +43,19 @@
   The fixed position keeps the nav pinned while the main content scrolls.
 -->
 <nav class="safe-bottom fixed right-0 bottom-0 left-0 z-50 border-t border-[var(--border)] bg-[var(--surface-raised)]">
-  <ul class="flex h-16 items-stretch">
+  <ul class="flex h-14 items-stretch">
     {#each tabs as tab, i (i)}
       {@const active = isActive(tab.href)}
       {@const Icon = tab.icon}
       <li class="flex flex-1 items-stretch">
         <a
           href={tab.href}
-          class="focusable flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] leading-none transition-colors
-						{active ? 'text-[#000090] dark:text-blue-400' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}"
+          class="focusable flex flex-1 items-center justify-center transition-colors
+  			{active ? 'text-[#000090] dark:text-blue-400' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}"
           aria-current={active ? 'page' : undefined}
+          aria-label={tab.labelKey}
         >
-          <Icon size={20} strokeWidth={active ? 2.5 : 1.75} />
-          <span>{t(tab.labelKey)}</span>
+          <Icon size={22} strokeWidth={active ? 2.5 : 1.75} />
         </a>
       </li>
     {/each}
