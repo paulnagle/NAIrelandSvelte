@@ -153,8 +153,9 @@ jobs:
           ASC_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
         run: |
           set -euo pipefail
-          # xcodebuild takes an explicit path; altool only looks in these
-          # well-known directories, so the key goes in both places.
+          # xcodebuild -exportArchive takes an explicit -authenticationKeyPath.
+          # Keep a copy in ~/.appstoreconnect/private_keys as well in case any
+          # Xcode tooling falls back to the well-known search path.
           mkdir -p ~/.appstoreconnect/private_keys
           echo "$ASC_PRIVATE_KEY" > "$RUNNER_TEMP/AuthKey.p8"
           cp "$RUNNER_TEMP/AuthKey.p8" ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
@@ -221,16 +222,19 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" ios/App/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$BUNDLE_ID string $PROFILE_UUID" ios/App/ExportOptions.plist
 
+      # Export the IPA from the archive. This always runs — the IPA is needed
+      # for the artifact step regardless of whether we upload.
+      # altool is not used: it fails with 401 on headless runners regardless of
+      # flag spelling. Instead, when uploading we patch destination=upload into
+      # ExportOptions.plist and run a second -exportArchive call (re-exporting
+      # from the same .xcarchive is fast — no recompile). xcodebuild uses the
+      # same -authenticationKey* path already proven to work in this job.
       - name: Export IPA
         env:
           ASC_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
         run: |
           set -euo pipefail
-          # -allowProvisioningUpdates is intentionally absent: manual signing with
-          # an explicit provisioningProfiles map requires no portal round-trip, and
-          # the flag causes xcodebuild to call listTeams.action which returns 401
-          # on headless runners, producing "requires a provisioning profile".
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
             -exportOptionsPlist ios/App/ExportOptions.plist \
@@ -247,18 +251,16 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
         run: |
           set -euo pipefail
-          IPA="$(find "$RUNNER_TEMP/export" -name '*.ipa' -maxdepth 1 | head -1)"
-          test -n "$IPA" || { echo "No .ipa produced"; exit 1; }
-          # Xcode 26 altool uses --api-key / --api-issuer (hyphenated). The old
-          # camelCase --apiKey / --apiIssuer flags are silently ignored, causing
-          # altool to fall back to username/password auth and fail with 401.
-          # The key file is already at ~/.appstoreconnect/private_keys/AuthKey_<id>.p8
-          # from the "Write App Store Connect API key" step, so no --p8-file-path needed.
-          xcrun altool --upload-app \
-            --type ios \
-            -f "$IPA" \
-            --api-key "$ASC_KEY_ID" \
-            --api-issuer "$ASC_ISSUER_ID"
+          # Re-export with destination=upload. xcodebuild reads ExportOptions.plist
+          # fresh each time, so we patch it in place. The archive is not recompiled.
+          /usr/libexec/PlistBuddy -c "Add :destination string upload" ios/App/ExportOptions.plist
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist ios/App/ExportOptions.plist \
+            -exportPath "$RUNNER_TEMP/upload" \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
 
       - name: Upload artifacts
         if: always()
