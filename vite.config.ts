@@ -23,7 +23,7 @@ export default defineConfig({
       '/api/posts': {
         target: 'https://www.na-ireland.org',
         changeOrigin: true,
-        rewrite: () => '/wp-json/wp/v2/posts?categories=9'
+        rewrite: () => '/wp-json/wp/v2/posts?categories=9&_embed=wp:featuredmedia'
       },
       '/api/conventions': {
         target: 'https://nasouth.ie',

@@ -38,9 +38,118 @@
   </div>
 {:else}
   <!-- JFT content is fetched from the trusted jftna.org API -->
-  <div class="selectable p-4">
+  <div class="jft-content selectable p-4">
     <!-- eslint-disable svelte/no-at-html-tags -->
     {@html content}
     <!-- eslint-enable svelte/no-at-html-tags -->
   </div>
 {/if}
+
+<style>
+  /*
+   * Style the raw HTML returned by jftna.org.
+   * The API sends a full <table>-based document; we normalise it into a clean
+   * card layout that matches the app's design tokens.
+   */
+
+  /* Hide the outer page chrome — <html>, <head>, <body> are inert inside
+     {@html}, but the <table> wrapper and copyright row get suppressed visually. */
+  :global(.jft-content table) {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  :global(.jft-content tr) {
+    display: block;
+  }
+
+  :global(.jft-content td) {
+    display: block;
+    padding: 0;
+  }
+
+  /* Date heading (h2) */
+  :global(.jft-content h2) {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+  }
+
+  /* Title heading (h1) */
+  :global(.jft-content h1) {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.3;
+    margin-bottom: 0.25rem;
+    text-align: center;
+  }
+
+  /* Page reference line */
+  :global(.jft-content td[align='center']:has(+ td[align='left'] i)) {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+  }
+
+  /* Pull-quote — the 4th <tr> in the table holds the opening italic citation.
+     :first-of-type matches every td (each is the only td in its tr), so we
+     target the row by position instead. */
+  :global(.jft-content tr:nth-child(4) td i) {
+    display: block;
+    border-left: 3px solid #000090;
+    padding: 0.5rem 0.75rem;
+    margin: 0.75rem 0;
+    font-style: italic;
+    color: var(--text-muted);
+    background-color: var(--surface-sunken);
+    border-radius: 0 0.5rem 0.5rem 0;
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+
+  /* Source attribution (e.g. "Basic Text, p. 56") */
+  :global(.jft-content td[align='center']:not(:has(h1)):not(:has(h2)):not(:last-child)) {
+    font-size: 0.8rem;
+    font-style: italic;
+    color: var(--text-muted);
+    text-align: right;
+    margin-bottom: 1rem;
+  }
+
+  /* Body text paragraphs */
+  :global(.jft-content td[align='left']) {
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+  }
+
+  /* "Just for Today:" affirmation — bold lead-in */
+  :global(.jft-content td[align='left'] b) {
+    color: #000090;
+  }
+
+  /* Copyright footer */
+  :global(.jft-content td[align='center']:last-child) {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  :global(.jft-content td[align='center']:last-child a) {
+    color: var(--text-muted);
+    text-decoration: none;
+  }
+
+  /* Suppress the inline <script> tag content from rendering as text */
+  :global(.jft-content script) {
+    display: none;
+  }
+</style>
