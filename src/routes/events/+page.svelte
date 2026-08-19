@@ -51,31 +51,34 @@
     {#each posts as post, i (i)}
       {@const imageUrl = getPostImage(post)}
       <article class="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-sm">
-        {#if imageUrl}
-          <img
-            src={imageUrl}
-            alt=""
-            class="h-48 w-full object-cover"
-            loading="lazy"
-          />
-        {/if}
-        <div class="p-4">
-          <p class="mb-1 text-xs font-medium text-[var(--text-muted)]">{formatDate(post.date)}</p>
-          <h2 class="selectable mb-2 text-base font-semibold text-[#000090]">
+        <div class="p-4 pb-0">
+          <h2 class="selectable mb-1 text-base font-semibold text-[#000090]">
             {@html post.title.rendered}
           </h2>
+          <p class="mb-2 text-xs font-medium text-[var(--text-muted)]">{formatDate(post.date)}</p>
+        </div>
+        {#if imageUrl}
+          <img src={imageUrl} alt="" class="h-48 w-full object-cover" loading="lazy" />
+        {/if}
+        <div class="p-4">
           {#if post.excerpt.rendered.trim()}
             <div class="post-excerpt selectable mb-4 text-sm text-[var(--text-muted)]">
               {@html post.excerpt.rendered}
             </div>
           {/if}
-          <button
-            type="button"
-            onclick={() => openPost(post.link)}
-            class="focusable flex items-center gap-2 rounded-lg bg-[#000090] px-4 py-2 text-sm font-semibold text-white active:brightness-90"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+          <button type="button" onclick={() => openPost(post.link)} class="focusable flex items-center gap-2 rounded-lg bg-[#000090] px-4 py-2 text-sm font-semibold text-white active:brightness-90">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
             </svg>
             {t('EVENTS.MOREDETAILS')}
           </button>

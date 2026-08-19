@@ -52,7 +52,9 @@
 </svelte:head>
 
 <div class="app-shell flex min-h-dvh flex-col">
-  <AppBar title={appTitle} onMenuClick={() => (drawerOpen = true)} />
+  <div class="sticky top-0 z-40">
+    <AppBar title={appTitle} onMenuClick={() => (drawerOpen = true)} />
+  </div>
   <SideDrawer open={drawerOpen} onclose={() => (drawerOpen = false)} />
 
   <main class="app-main flex flex-1 flex-col overflow-y-auto">
