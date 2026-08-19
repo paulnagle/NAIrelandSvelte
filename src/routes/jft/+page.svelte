@@ -38,10 +38,12 @@
   </div>
 {:else}
   <!-- JFT content is fetched from the trusted jftna.org API -->
-  <div class="jft-content selectable p-4">
-    <!-- eslint-disable svelte/no-at-html-tags -->
-    {@html content}
-    <!-- eslint-enable svelte/no-at-html-tags -->
+  <div class="p-3">
+    <div class="jft-content selectable rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-4 shadow-sm">
+      <!-- eslint-disable svelte/no-at-html-tags -->
+      {@html content}
+      <!-- eslint-enable svelte/no-at-html-tags -->
+    </div>
   </div>
 {/if}
 
