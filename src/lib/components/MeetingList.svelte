@@ -131,57 +131,67 @@
   {#if groups.length === 0}
     <p class="px-4 py-8 text-center text-sm text-[var(--text-muted)]">Nothing found.</p>
   {:else}
-    <div class="flex flex-col divide-y divide-[var(--border)]">
+    {@const DAY_KEYS = ['', 'SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']}
+    {@const DAY_COLORS = ['', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']}
+    <div class="flex flex-col gap-2 px-3 pb-3">
       {#each groups as group, gi (gi)}
         {@const isToday = group.weekday === todayWeekday}
         {@const isOpen = expanded.has(group.weekday)}
-        {@const DAY_KEYS = ['', 'SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']}
-        <!-- Day header -->
-        <button
-          type="button"
-          onclick={() => toggleDay(group.weekday)}
-          class="focusable flex w-full items-center justify-between px-4 py-3 text-left
-            {isToday ? 'bg-[var(--color-bmlt)] text-white' : 'bg-[var(--surface-raised)] text-[var(--text)]'}"
-          aria-expanded={isOpen}
-        >
-          <span class="font-semibold">
-            {t(DAY_KEYS[group.weekday] ?? 'SUNDAY')}
-            {#if isToday}
-              <span class="ml-1 text-xs font-normal opacity-80">(today)</span>
-            {/if}
-          </span>
-          <div class="flex items-center gap-2">
-            <span
-              class="rounded-full px-2 py-0.5 text-xs font-bold
-              {isToday ? 'bg-white/20 text-white' : 'bg-[var(--surface-sunken)] text-[var(--text-muted)]'}"
-            >
-              {group.meetings.length}
-            </span>
-            <!-- Chevron -->
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4 transition-transform {isOpen ? 'rotate-180' : ''}"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </div>
-        </button>
+        {@const colorVar = `var(--color-${DAY_COLORS[group.weekday] ?? 'sunday'})`}
 
-        <!-- Meetings for this day -->
-        {#if isOpen}
-          <div class="flex flex-col gap-3 bg-[var(--surface)] p-3">
-            {#each group.meetings as meeting, mi (mi)}
-              <MeetingCard {meeting} {formatNames} />
-            {/each}
-          </div>
-        {/if}
+        <!-- Day accordion card -->
+        <div class="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-sm">
+          <!-- Day header button -->
+          <button
+            type="button"
+            onclick={() => toggleDay(group.weekday)}
+            class="focusable flex w-full items-center gap-3 px-4 py-3 text-left"
+            aria-expanded={isOpen}
+          >
+            <!-- Weekday colour swatch -->
+            <span
+              class="h-8 w-1.5 shrink-0 rounded-full"
+              style="background-color: {colorVar};"
+              aria-hidden="true"
+            ></span>
+
+            <span class="flex-1 font-semibold text-[var(--text)]">
+              {t(DAY_KEYS[group.weekday] ?? 'SUNDAY')}
+              {#if isToday}
+                <span class="ml-2 rounded-full bg-[#000090] px-2 py-0.5 text-xs font-semibold text-white">today</span>
+              {/if}
+            </span>
+
+            <div class="flex items-center gap-2">
+              <span class="rounded-full bg-[var(--surface-sunken)] px-2 py-0.5 text-xs font-bold text-[var(--text-muted)]">
+                {group.meetings.length}
+              </span>
+              <!-- Chevron -->
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4 shrink-0 text-[var(--text-muted)] transition-transform {isOpen ? 'rotate-180' : ''}"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </div>
+          </button>
+
+          <!-- Meetings for this day -->
+          {#if isOpen}
+            <div class="flex flex-col gap-3 border-t border-[var(--border)] bg-[var(--surface)] p-3">
+              {#each group.meetings as meeting, mi (mi)}
+                <MeetingCard {meeting} {formatNames} />
+              {/each}
+            </div>
+          {/if}
+        </div>
       {/each}
     </div>
   {/if}
