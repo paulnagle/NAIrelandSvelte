@@ -341,8 +341,8 @@
       title,
       // iconUrl skips the plugin's PinElement/glyph path, avoiding deprecation warnings.
       iconUrl: '/marker-blue.png',
-      iconSize: { width: 42, height: 50 },
-      iconAnchor: { x: 21, y: 50 }
+      iconSize: { width: 70, height: 84 },
+      iconAnchor: { x: 35, y: 84 }
     }));
 
     const ids = await gmap.addMarkers(markerDefs);
@@ -367,8 +367,8 @@
 
       const img = document.createElement('img');
       img.src = isCluster ? '/marker-red.png' : '/marker-blue.png';
-      img.width = 42;
-      img.height = 50;
+      img.width = 70;
+      img.height = 84;
       img.style.display = 'block';
 
       return new google.maps.marker.AdvancedMarkerElement({
@@ -397,8 +397,8 @@
     const markers = groups.map(({ lat, lng, title }) => {
       const img = document.createElement('img');
       img.src = '/marker-blue.png';
-      img.width = 42;
-      img.height = 50;
+      img.width = 70;
+      img.height = 84;
       img.style.display = 'block';
 
       const marker = new AdvancedMarkerElement({
