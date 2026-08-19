@@ -55,7 +55,7 @@
   <AppBar title={appTitle} onMenuClick={() => (drawerOpen = true)} />
   <SideDrawer open={drawerOpen} onclose={() => (drawerOpen = false)} />
 
-  <main class="app-main flex-1 overflow-y-auto">
+  <main class="app-main flex flex-1 flex-col overflow-y-auto">
     {@render children()}
   </main>
 

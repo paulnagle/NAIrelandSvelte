@@ -22,7 +22,7 @@ export function loadMapsApi(): Promise<void> {
 
   setOptions({ key: webKey(), v: 'weekly' });
 
-  loaderPromise = Promise.all([importLibrary('maps'), importLibrary('places'), importLibrary('geometry')]).then(() => undefined);
+  loaderPromise = Promise.all([importLibrary('maps'), importLibrary('marker'), importLibrary('places'), importLibrary('geometry')]).then(() => undefined);
 
   return loaderPromise;
 }

@@ -19,10 +19,10 @@
 </script>
 
 <!-- Backdrop — aria-hidden so screen readers skip it; keyboard users close via the button -->
-<div class="fixed inset-0 z-40 bg-black/50" onclick={onClose} aria-hidden="true"></div>
+<div class="fixed inset-0 z-[60] bg-black/50" onclick={onClose} aria-hidden="true"></div>
 
 <!-- Panel -->
-<div role="dialog" aria-modal="true" aria-label="Meeting details" class="fixed right-0 bottom-0 left-0 z-50 flex max-h-[80dvh] flex-col rounded-t-2xl bg-[var(--surface)] shadow-2xl">
+<div role="dialog" aria-modal="true" aria-label="Meeting details" class="fixed right-0 bottom-0 left-0 z-[70] flex max-h-[80dvh] flex-col rounded-t-2xl bg-[var(--surface)] shadow-2xl">
   <!-- Handle + close -->
   <div class="flex shrink-0 items-center justify-between px-4 pt-3 pb-2">
     <!-- Drag handle decoration -->

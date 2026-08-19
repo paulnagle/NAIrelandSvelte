@@ -28,6 +28,8 @@
   import { GoogleMap } from '@capacitor/google-maps';
   import type { CameraIdleCallbackData } from '@capacitor/google-maps/dist/typings/definitions';
   import { Geolocation } from '@capacitor/geolocation';
+  import { MarkerClusterer, SuperClusterAlgorithm } from '@googlemaps/markerclusterer';
+  import type { Cluster, Renderer, ClusterStats } from '@googlemaps/markerclusterer';
   import { onMount, onDestroy } from 'svelte';
   import { t } from '$lib/i18n/index.js';
   import { settings } from '$lib/stores/settings.svelte.js';
@@ -56,7 +58,7 @@
 
   // ── State ──────────────────────────────────────────────────────────────────
 
-  /** Svelte-managed reference to the GoogleMap instance. */
+  /** Native-only: the Capacitor GoogleMap plugin instance. */
   let gmap: GoogleMap | null = null;
 
   /**
@@ -83,8 +85,20 @@
   /** Timestamp of the last getMeetings call — used to debounce rapid idle events. */
   let debounceTimestamp = 0;
 
-  /** IDs of currently displayed markers (for removal before the next search). */
+  /** Native-only: IDs of currently displayed markers tracked for removal. */
   let currentMarkerIds: string[] = [];
+
+  /**
+   * Web-only: the google.maps.Map created directly (not via the plugin).
+   * On native, the plugin manages the map; this is always null there.
+   */
+  let webGoogleMap: google.maps.Map | null = null;
+
+  /**
+   * Web-only: the MarkerClusterer that owns all AdvancedMarkerElements.
+   * Replaced on every search, null between searches.
+   */
+  let webMarkerClusterer: MarkerClusterer | null = null;
 
   /** Whether a search is in progress (shows spinner). */
   let searching = $state(false);
@@ -105,11 +119,16 @@
   /**
    * Move the camera to the given coordinates.
    *
-   * If the map is not yet ready (has not emitted a cameraIdle event), the move
-   * is queued and replayed when ready — this prevents the setCamera crash on iOS
-   * where the native map view is not yet initialised.
+   * On native: queues the move if the map isn't ready yet (prevents the
+   * setCamera crash on iOS where the native view is not yet initialised).
+   * On web: applies immediately via the google.maps.Map JS API.
    */
   function moveCamera(lat: number, lng: number, zoom: number): void {
+    if (isWeb()) {
+      webGoogleMap?.setCenter({ lat, lng });
+      webGoogleMap?.setZoom(zoom);
+      return;
+    }
     if (!gmap || !mapReady) {
       pendingCamera = { lat, lng, zoom };
       return;
@@ -117,10 +136,44 @@
     gmap.setCamera({ coordinate: { lat, lng }, zoom });
   }
 
-  async function createMap(lat: number, lng: number): Promise<void> {
-    const mapEl = document.getElementById('map') as HTMLElement | null;
-    if (!mapEl) return;
+  /**
+   * Create the map on web using the google.maps.Map JS API directly.
+   * This gives us the map instance we need for AdvancedMarkerElement and
+   * MarkerClusterer without having to dig into the plugin's internals.
+   */
+  async function createMapWeb(mapEl: HTMLElement, lat: number, lng: number): Promise<void> {
+    // 'maps' and 'marker' are already loaded by loadMapsApi() in onMount.
+    webGoogleMap = new google.maps.Map(mapEl, {
+      center: { lat, lng },
+      zoom: 8,
+      mapId: 'na_ireland_map' // required for AdvancedMarkerElement
+    });
 
+    webGoogleMap.addListener('idle', () => {
+      if (!searchAfterMove) {
+        searchAfterMove = true;
+        return;
+      }
+
+      const zoom = webGoogleMap!.getZoom() ?? 8;
+      if (zoom <= 7) {
+        searchAfterMove = false;
+        webGoogleMap!.setZoom(8);
+        return;
+      }
+
+      const bounds = webGoogleMap!.getBounds();
+      if (!bounds) return;
+      const center = bounds.getCenter();
+      const sw = bounds.getSouthWest();
+      getMeetings(center.lat(), center.lng(), sw.lat(), sw.lng());
+    });
+  }
+
+  /**
+   * Create the map on native using the Capacitor plugin.
+   */
+  async function createMapNative(mapEl: HTMLElement, lat: number, lng: number): Promise<void> {
     const key = platformKey();
 
     // iOS: wait for the custom element to be upgraded, then two animation frames
@@ -136,10 +189,7 @@
       element: mapEl,
       apiKey: key,
       forceCreate: true,
-      config: {
-        center: { lat, lng },
-        zoom: 8
-      }
+      config: { center: { lat, lng }, zoom: 8 }
     });
 
     gmap.setOnCameraIdleListener((event: CameraIdleCallbackData) => {
@@ -155,20 +205,19 @@
       }
 
       if (!searchAfterMove) {
-        // Marker tap triggered this idle — skip search so we don't rebuild the
-        // pins the user is about to read, and reset the flag for next time.
         searchAfterMove = true;
         return;
       }
 
       if (event.zoom <= 7) {
-        // Too zoomed out — nudge back in without triggering another search.
         searchAfterMove = false;
         gmap?.setCamera({ zoom: 8 });
         return;
       }
 
-      getMeetings(event);
+      const center = event.bounds.center;
+      const sw = event.bounds.southwest;
+      getMeetings(center.lat, center.lng, sw.lat, sw.lng);
     });
 
     gmap.setOnMarkerClickListener((event) => {
@@ -179,9 +228,20 @@
     });
   }
 
+  async function createMap(lat: number, lng: number): Promise<void> {
+    const mapEl = document.getElementById('map') as HTMLElement | null;
+    if (!mapEl) return;
+
+    if (isWeb()) {
+      await createMapWeb(mapEl, lat, lng);
+    } else {
+      await createMapNative(mapEl, lat, lng);
+    }
+  }
+
   // ── Meeting search ─────────────────────────────────────────────────────────
 
-  function getMeetings(event: CameraIdleCallbackData): void {
+  function getMeetings(centerLat: number, centerLng: number, swLat: number, swLng: number): void {
     const now = Date.now();
     if (debounceTimestamp !== 0 && now - debounceTimestamp < 1000) {
       debounceTimestamp = now;
@@ -189,18 +249,12 @@
     }
     debounceTimestamp = now;
 
-    // Compute search radius from the map bounds.
+    // Compute search radius from center to SW corner of visible bounds.
     // google.maps is available because loadMapsApi() ran on web, or because
     // @capacitor/google-maps injects it on native.
-    const center = event.bounds.center;
-    const sw = event.bounds.southwest;
-
     let radiusKm = 20; // sensible fallback if geometry is unavailable
     try {
-      const distM = (google.maps.geometry.spherical.computeDistanceBetween as (a: unknown, b: unknown) => number)(
-        new google.maps.LatLng(center.lat, center.lng),
-        new google.maps.LatLng(sw.lat, sw.lng)
-      );
+      const distM = (google.maps.geometry.spherical.computeDistanceBetween as (a: unknown, b: unknown) => number)(new google.maps.LatLng(centerLat, centerLng), new google.maps.LatLng(swLat, swLng));
       radiusKm = Math.ceil(distM / 1000);
     } catch {
       // google.maps.geometry not available yet — use fallback
@@ -208,7 +262,7 @@
 
     searching = true;
 
-    getRadiusMeetings(center.lat, center.lng, radiusKm)
+    getRadiusMeetings(centerLat, centerLng, radiusKm)
       .then(async (meetings) => {
         await removeMarkers();
         await addMarkers(meetings as Meeting[]);
@@ -235,22 +289,14 @@
       });
   }
 
-  // ── Marker management ──────────────────────────────────────────────────────
+  // ── Marker grouping ────────────────────────────────────────────────────────
 
-  async function removeMarkers(): Promise<void> {
-    if (!gmap || currentMarkerIds.length === 0) return;
-    await gmap.removeMarkers(currentMarkerIds);
-    currentMarkerIds = [];
-  }
-
-  async function addMarkers(meetings: Meeting[]): Promise<void> {
-    if (!gmap || meetings.length === 0) return;
-
-    // Group co-located meetings. Two meetings are co-located when their
-    // coordinates match to 3 decimal places (~111m). The original used a
-    // sorted list and a do-while loop; we use a Map keyed on a rounded
-    // coordinate string so the logic is easier to follow.
-    // SvelteMap used here so the svelte/prefer-svelte-reactivity lint rule is satisfied.
+  /**
+   * Group co-located meetings into buckets keyed by rounded lat/lng (~111m).
+   * Two meetings at the same venue share one marker; the title carries all IDs.
+   */
+  function groupMeetings(meetings: Meeting[]): Array<{ lat: number; lng: number; title: string }> {
+    // SvelteMap used so the svelte/prefer-svelte-reactivity lint rule is satisfied.
     // Nothing renders from this map.
     const groups = new SvelteMap<string, Meeting[]>();
     for (const m of meetings) {
@@ -262,22 +308,120 @@
       bucket.push(m);
       groups.set(key, bucket);
     }
+    return Array.from(groups.values()).map((bucket) => ({
+      lat: parseFloat(bucket[0].latitude),
+      lng: parseFloat(bucket[0].longitude),
+      // IDs joined so they can be passed directly to getMeetingsByIds().
+      title: bucket.map((m) => m.id_bigint).join('&meeting_ids[]=')
+    }));
+  }
 
-    const markerDefs = Array.from(groups.values()).map((bucket) => {
-      const first = bucket[0];
-      const lat = parseFloat(first.latitude);
-      const lng = parseFloat(first.longitude);
-      // The marker title carries the meeting ID(s). Multiple IDs are joined
-      // with '&meeting_ids[]=' so they can be passed directly to getMeetingsByIds().
-      const title = bucket.map((m) => m.id_bigint).join('&meeting_ids[]=');
-      return {
-        coordinate: { lat, lng },
-        title
-      };
-    });
+  // ── Native marker management ───────────────────────────────────────────────
+
+  async function removeMarkers(): Promise<void> {
+    if (isWeb()) {
+      removeMarkersWeb();
+      return;
+    }
+    if (!gmap || currentMarkerIds.length === 0) return;
+    await gmap.removeMarkers(currentMarkerIds);
+    currentMarkerIds = [];
+  }
+
+  async function addMarkers(meetings: Meeting[]): Promise<void> {
+    if (isWeb()) {
+      addMarkersWeb(meetings);
+      return;
+    }
+    if (!gmap || meetings.length === 0) return;
+
+    const groups = groupMeetings(meetings);
+    const markerDefs = groups.map(({ lat, lng, title }) => ({
+      coordinate: { lat, lng },
+      title,
+      // iconUrl skips the plugin's PinElement/glyph path, avoiding deprecation warnings.
+      iconUrl: '/marker-blue.png',
+      iconSize: { width: 42, height: 50 },
+      iconAnchor: { x: 21, y: 50 }
+    }));
 
     const ids = await gmap.addMarkers(markerDefs);
     currentMarkerIds = ids;
+
+    // Enable clustering after markers are added so the clusterer picks them up.
+    await gmap.enableClustering(4);
+  }
+
+  // ── Web marker management (AdvancedMarkerElement + MarkerClusterer) ────────
+
+  /**
+   * Custom renderer: uses marker-blue.png for single-location pins and
+   * marker-red.png for clustered pins (count > 1), with a count label.
+   * Uses the legacy google.maps.Marker for cluster pins so a text label can
+   * be composited on top without needing a DOM element per cluster.
+   */
+  const webClusterRenderer: Renderer = {
+    render(cluster: Cluster, _stats: ClusterStats, map: google.maps.Map): google.maps.marker.AdvancedMarkerElement {
+      const { count, position } = cluster;
+      const isCluster = count > 1;
+
+      const img = document.createElement('img');
+      img.src = isCluster ? '/marker-red.png' : '/marker-blue.png';
+      img.width = 42;
+      img.height = 50;
+      img.style.display = 'block';
+
+      return new google.maps.marker.AdvancedMarkerElement({
+        map,
+        position,
+        content: img,
+        zIndex: isCluster ? 1000 + count : 1
+      });
+    }
+  };
+
+  function removeMarkersWeb(): void {
+    if (webMarkerClusterer) {
+      webMarkerClusterer.clearMarkers();
+      webMarkerClusterer.setMap(null);
+      webMarkerClusterer = null;
+    }
+  }
+
+  function addMarkersWeb(meetings: Meeting[]): void {
+    if (!webGoogleMap || meetings.length === 0) return;
+
+    const groups = groupMeetings(meetings);
+    const AdvancedMarkerElement = google.maps.marker.AdvancedMarkerElement;
+
+    const markers = groups.map(({ lat, lng, title }) => {
+      const img = document.createElement('img');
+      img.src = '/marker-blue.png';
+      img.width = 42;
+      img.height = 50;
+      img.style.display = 'block';
+
+      const marker = new AdvancedMarkerElement({
+        position: { lat, lng },
+        content: img,
+        title,
+        zIndex: 1
+      });
+
+      marker.addListener('click', () => {
+        searchAfterMove = false;
+        openDetail(title);
+      });
+
+      return marker;
+    });
+
+    webMarkerClusterer = new MarkerClusterer({
+      map: webGoogleMap,
+      markers,
+      algorithm: new SuperClusterAlgorithm({ minPoints: 4 }),
+      renderer: webClusterRenderer
+    });
   }
 
   // ── Meeting detail panel ───────────────────────────────────────────────────
@@ -440,6 +584,11 @@
     // Remove the Android transparency class so other screens get their backgrounds back.
     document.documentElement.classList.remove('map-underlay');
 
+    // Web: tear down the clusterer; the google.maps.Map is GC'd with the DOM element.
+    removeMarkersWeb();
+    webGoogleMap = null;
+
+    // Native: destroy the plugin map instance.
     if (gmap) {
       gmap.removeAllMapListeners();
       gmap.destroy();
@@ -462,9 +611,9 @@
     bar and suggestion list use bg-[var(--surface-raised)] for this purpose.
     The map container itself is transparent (the plugin needs this).
   -->
-  <div class="relative h-full w-full overflow-hidden">
+  <div class="relative w-full flex-1 overflow-hidden">
     <!-- Map element — must be in the DOM before GoogleMap.create() is called -->
-    <capacitor-google-map id="map" style="display: block; width: 100%; height: 100%; background: transparent;"></capacitor-google-map>
+    <capacitor-google-map id="map" style="display: block; position: absolute; inset: 0; background: transparent;"></capacitor-google-map>
 
     <!-- ── Search bar (opaque on Android) ────────────────────────────────── -->
     <div class="absolute top-2 right-2 left-2 z-10">
