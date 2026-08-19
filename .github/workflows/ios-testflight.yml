@@ -249,11 +249,16 @@ jobs:
           set -euo pipefail
           IPA="$(find "$RUNNER_TEMP/export" -name '*.ipa' -maxdepth 1 | head -1)"
           test -n "$IPA" || { echo "No .ipa produced"; exit 1; }
+          # Xcode 26 altool uses --api-key / --api-issuer (hyphenated). The old
+          # camelCase --apiKey / --apiIssuer flags are silently ignored, causing
+          # altool to fall back to username/password auth and fail with 401.
+          # The key file is already at ~/.appstoreconnect/private_keys/AuthKey_<id>.p8
+          # from the "Write App Store Connect API key" step, so no --p8-file-path needed.
           xcrun altool --upload-app \
             --type ios \
-            --file "$IPA" \
-            --apiKey "$ASC_KEY_ID" \
-            --apiIssuer "$ASC_ISSUER_ID"
+            -f "$IPA" \
+            --api-key "$ASC_KEY_ID" \
+            --api-issuer "$ASC_ISSUER_ID"
 
       - name: Upload artifacts
         if: always()
