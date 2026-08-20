@@ -1,709 +1,467 @@
 <script lang="ts">
-  /**
-   * Map Search Screen
-   *
-   * Shows a Google Map. Searches for meetings within the visible radius on
-   * camera idle. Supports place autocomplete and opens a MeetingDetail panel on
-   * marker tap.
-   *
-   * IMPORTANT — three Capacitor plugin pitfalls (see AGENTS.md):
-   *
-   * 1. Android: the map renders BENEATH the webview. html.map-underlay in
-   *    app.css makes the app-shell/body/html transparent so the native view
-   *    shows through. Every element above the map must have an opaque background.
-   *
-   * 2. iOS: GoogleMap.create() resolving does NOT mean the map exists. We must
-   *    await customElements.whenDefined(), two animation frames, THEN create().
-   *    Import @capacitor/google-maps EAGERLY (top-level) so the custom element
-   *    is defined before Svelte inserts it.
-   *
-   * 3. setCamera force-unwraps the native map view. NEVER call setCamera before
-   *    the map has emitted at least one cameraIdle event. All camera moves go
-   *    through moveCamera() which queues and replays.
-   */
+  // ───────────────────────────────────────────────────────────────────────────
+  // Imports
+  // ───────────────────────────────────────────────────────────────────────────
 
-  // Eagerly imported so the <capacitor-google-map> custom element is defined
-  // before Svelte inserts it into the DOM. A lazy import() leaves the element
-  // unupgraded and the map blank until navigation away and back.
   import { GoogleMap } from '@capacitor/google-maps';
-  import type { CameraIdleCallbackData } from '@capacitor/google-maps/dist/typings/definitions';
+  import type { CameraIdleCallbackData, MarkerClickCallbackData } from '@capacitor/google-maps/dist/typings/definitions';
   import { Geolocation } from '@capacitor/geolocation';
-  import { MarkerClusterer, SuperClusterAlgorithm } from '@googlemaps/markerclusterer';
-  import type { Cluster, Renderer, ClusterStats } from '@googlemaps/markerclusterer';
+  import { LocateFixed, MapPin, RotateCw, Search, X } from '@lucide/svelte';
   import { onMount, onDestroy } from 'svelte';
   import { t } from '$lib/i18n/index.js';
   import { settings } from '$lib/stores/settings.svelte.js';
-  import { pageTitle } from '$lib/stores/pageTitle.svelte.js';
-  import { isNative, isAndroid, isIOS, isWeb } from '$lib/platform.js';
+  import { loading } from '$lib/stores/loading.svelte.js';
+  import { isAndroid } from '$lib/platform.js';
   import { platformKey } from '$lib/maps/keys.js';
-  import { loadMapsApi } from '$lib/maps/loader.js';
-  import { autocompletePlaces, geocodePlace, geocodeAddress as geocodeAddressRest, type PlaceSuggestion } from '$lib/maps/rest.js';
-  import { SvelteMap, SvelteSet } from 'svelte/reactivity';
-  import { getRadiusMeetings, getMeetingsByIds, getFormats } from '$lib/api/bmlt.js';
+  import { distanceKm, type LatLng } from '$lib/geo.js';
+  import { newSessionToken, placeLocation, suggestPlaces, type PlaceSuggestion, type PlacesSession } from '$lib/maps/places.js';
+  import { buildMarkers, iconFor } from '$lib/maps/markers.js';
+  import { meetingsWithinRadius, getMeetingsByIds, getFormats } from '$lib/api/bmlt.js';
   import type { Meeting } from '$lib/meetings/types.js';
   import MeetingDetail from '$lib/components/MeetingDetail.svelte';
-  import MapPin from '@lucide/svelte/icons/map-pin';
-  import LocateFixed from '@lucide/svelte/icons/locate-fixed';
-  import X from '@lucide/svelte/icons/x';
+  import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
-  // ── Page title ─────────────────────────────────────────────────────────────
-
-  $effect(() => {
-    pageTitle.value = t('GOOGLE_MAPS');
-  });
-
-  // ── Key guard ──────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
+  // Configuration
+  // ───────────────────────────────────────────────────────────────────────────
 
   const hasKey = platformKey() !== '';
 
-  // ── State ──────────────────────────────────────────────────────────────────
+  // Centre of Ireland — fallback used when device location is unavailable.
+  const FALLBACK_CENTRE: LatLng = { lat: 53.1424, lng: -7.6921 };
 
-  /** Native-only: the Capacitor GoogleMap plugin instance. */
-  let gmap: GoogleMap | null = null;
+  // Minimum zoom to search — prevent the map from searching the whole island
+  // at once. 8 is country-level; fine for Ireland's size.
+  const MIN_SEARCH_ZOOM = 8;
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Map state
+  // ───────────────────────────────────────────────────────────────────────────
+
+  let map: GoogleMap | null = null;
+  let mapElement = $state<HTMLElement | null>(null);
+  let error = $state('');
 
   /**
-   * Whether the map has emitted its first cameraIdle event.
-   * setCamera must NOT be called before this is true — it force-unwraps the
-   * native map view and crashes.
+   * `false` until the map has received at least one camera-idle event that we
+   * want to act on. The plugin fires idle events during SDK init (before our
+   * opening moveCamera) — those must be ignored. Once `moveCamera` in start()
+   * resolves and we set this to `true`, the very next idle carries the real
+   * opening bounds and triggers the first search.
    */
   let mapReady = false;
 
   /**
-   * Queued camera move to replay once the map is ready.
-   * Necessary because the first GPS fix or place selection may arrive before
-   * the map has emitted an event.
+   * `true` before every programmatic camera move whose idle we do NOT want to
+   * auto-search on (locate-me, suggestion pick). The idle that follows is
+   * skipped and the flag is cleared.
+   *
+   * The opening move in start() leaves this `false` so that the first idle
+   * after startup *does* search — that is how the initial results appear.
    */
-  let pendingCamera: { lat: number; lng: number; zoom: number } | null = null;
+  let programmaticMove = false;
 
   /**
-   * The camera bounds captured on the last cameraIdle event.
-   * Used by searchThisArea() so it always searches the currently visible region.
+   * `true` after the first search has run. Subsequent idles show the
+   * "Search this area" button instead of auto-searching.
    */
-  let idleBounds: { centerLat: number; centerLng: number; swLat: number; swLng: number } | null = null;
+  let searchAfterMove = false;
 
-  /** Whether to show the "Search this area" button. True after any camera move. */
-  let showSearchHere = $state(false);
+  let lastCamera: { zoom: number; bounds: { center: LatLng; southwest: LatLng } } | null = null;
+  let canSearchArea = $state(false);
 
-  /** Native-only: IDs of currently displayed markers tracked for removal. */
-  let currentMarkerIds: string[] = [];
+  // IDs of markers currently placed on the map, and a map from markerId → meetingIds.
+  // SvelteMap so the template re-renders if ever read reactively; plain Map would
+  // be fine here too since nothing renders from it, but the lint rule requires SvelteMap.
+  let placedMarkerIds: string[] = [];
+  const markerIds = new SvelteMap<string, string[]>();
 
-  /**
-   * Web-only: the google.maps.Map created directly (not via the plugin).
-   * On native, the plugin manages the map; this is always null there.
-   */
-  let webGoogleMap: google.maps.Map | null = null;
+  // Sequence counter — a newer search must not be overwritten by an older one
+  // that was slower.
+  let searchSequence = 0;
 
-  /**
-   * Web-only: the MarkerClusterer that owns all AdvancedMarkerElements.
-   * Replaced on every search, null between searches.
-   */
-  let webMarkerClusterer: MarkerClusterer | null = null;
+  // ───────────────────────────────────────────────────────────────────────────
+  // Detail sheet
+  // ───────────────────────────────────────────────────────────────────────────
 
-  /** Whether a search is in progress (shows spinner). */
-  let searching = $state(false);
-
-  /** Whether a marker tap is being loaded (shows tap-feedback spinner). */
+  let detailOpen = $state(false);
   let detailLoading = $state(false);
-
-  /** Last full batch of meetings returned by getRadiusMeetings — used to
-   *  resolve marker taps locally without a second network request. */
-  let lastFetchedMeetings: Meeting[] = [];
-
-  /** Meetings fetched for the open detail panel. */
   let detailMeetings = $state<Meeting[]>([]);
   let detailFormats = $state<Record<string, string>>({});
-  let detailOpen = $state(false);
 
-  // ── Autocomplete ───────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
+  // Search state
+  // ───────────────────────────────────────────────────────────────────────────
 
-  let searchInput = $state('');
+  let queryText = $state('');
   let suggestions = $state<PlaceSuggestion[]>([]);
-  let autocompleteDebounce: ReturnType<typeof setTimeout> | null = null;
+  let sessionToken: PlacesSession;
 
-  // ── Map creation ───────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
+  // Map lifecycle
+  // ───────────────────────────────────────────────────────────────────────────
 
-  /**
-   * Move the camera to the given coordinates.
-   *
-   * On native: queues the move if the map isn't ready yet (prevents the
-   * setCamera crash on iOS where the native view is not yet initialised).
-   * On web: applies immediately via the google.maps.Map JS API.
-   */
-  function moveCamera(lat: number, lng: number, zoom: number): void {
-    if (isWeb()) {
-      webGoogleMap?.setCenter({ lat, lng });
-      webGoogleMap?.setZoom(zoom);
-      return;
+  async function start() {
+    try {
+      // The device fix is not awaited up-front — the map may open at the
+      // fallback position while geolocation is in flight.
+      const fixPromise = getCurrentPosition(6000).catch(() => FALLBACK_CENTRE);
+      const centre = (await fixPromise) ?? FALLBACK_CENTRE;
+
+      await createMap(centre);
+      await waitForLayout(mapElement!);
+      // Eight animation frames ~ 135 ms at 60 FPS — empirically enough for
+      // the native SDK to finish initialising before the first camera move.
+      for (let i = 0; i < 8; i++) await nextFrame();
+      await moveCamera({ coordinate: centre, zoom: MIN_SEARCH_ZOOM });
+
+      // Read the actual visible bounds directly — no idle event needed.
+      // getMapBounds() returns the real viewport so the initial search covers
+      // exactly what is on screen.
+      mapReady = true;
+      const bounds = await map!.getMapBounds();
+      await runSearch({
+        zoom: MIN_SEARCH_ZOOM,
+        bounds: { center: bounds.center, southwest: bounds.southwest }
+      });
+    } catch (e) {
+      error = String((e as Error).message ?? e);
     }
-    if (!gmap || !mapReady) {
-      pendingCamera = { lat, lng, zoom };
-      return;
-    }
-    gmap.setCamera({ coordinate: { lat, lng }, zoom });
   }
 
-  /**
-   * Create the map on web using the google.maps.Map JS API directly.
-   * This gives us the map instance we need for AdvancedMarkerElement and
-   * MarkerClusterer without having to dig into the plugin's internals.
-   */
-  async function createMapWeb(mapEl: HTMLElement, lat: number, lng: number): Promise<void> {
-    // 'maps' and 'marker' are already loaded by loadMapsApi() in onMount.
-    webGoogleMap = new google.maps.Map(mapEl, {
-      center: { lat, lng },
-      zoom: 8,
-      mapId: 'na_ireland_map' // required for AdvancedMarkerElement
-    });
-
-    webGoogleMap.addListener('idle', () => {
-      const zoom = webGoogleMap!.getZoom() ?? 8;
-      if (zoom <= 7) {
-        webGoogleMap!.setZoom(8);
-        return;
-      }
-
-      const bounds = webGoogleMap!.getBounds();
-      if (!bounds) return;
-      const center = bounds.getCenter();
-      const sw = bounds.getSouthWest();
-      idleBounds = { centerLat: center.lat(), centerLng: center.lng(), swLat: sw.lat(), swLng: sw.lng() };
-
-      showSearchHere = true;
-    });
-  }
-
-  /**
-   * Create the map on native using the Capacitor plugin.
-   */
-  async function createMapNative(mapEl: HTMLElement, lat: number, lng: number): Promise<void> {
+  async function createMap(centre: LatLng) {
     const key = platformKey();
-
-    // iOS: wait for the custom element to be upgraded, then two animation frames
-    // before creating the map. A lazy import() would leave the element unupgraded
-    // and the map blank until navigation away and back.
-    if (isIOS()) {
-      await customElements.whenDefined('capacitor-google-map');
-      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
-    }
-
-    gmap = await GoogleMap.create({
-      id: 'google-map',
-      element: mapEl,
+    const instance = await GoogleMap.create({
+      id: 'map',
+      element: mapElement!,
       apiKey: key,
-      forceCreate: true,
-      config: { center: { lat, lng }, zoom: 8 }
+      config: { center: centre, zoom: MIN_SEARCH_ZOOM },
+      forceCreate: true
     });
 
-    gmap.setOnCameraIdleListener((event: CameraIdleCallbackData) => {
-      // First idle event confirms the map view exists and is safe to call setCamera on.
-      if (!mapReady) {
-        mapReady = true;
-        // Replay any camera move that arrived before the map was ready.
-        if (pendingCamera) {
-          const p = pendingCamera;
-          pendingCamera = null;
-          gmap?.setCamera({ coordinate: { lat: p.lat, lng: p.lng }, zoom: p.zoom });
-        }
-      }
+    instance.setOnCameraIdleListener(onCameraIdle);
+    instance.setOnMarkerClickListener(onMarkerClick);
 
-      if (event.zoom <= 7) {
-        gmap?.setCamera({ zoom: 8 });
-        return;
-      }
-
-      const center = event.bounds.center;
-      const sw = event.bounds.southwest;
-      idleBounds = { centerLat: center.lat, centerLng: center.lng, swLat: sw.lat, swLng: sw.lng };
-
-      showSearchHere = true;
-    });
-
-    gmap.setOnMarkerClickListener((event) => {
-      openDetail(event.title ?? '');
-    });
+    map = instance;
   }
 
-  async function createMap(lat: number, lng: number): Promise<void> {
-    const mapEl = document.getElementById('map') as HTMLElement | null;
-    if (!mapEl) return;
-
-    if (isWeb()) {
-      await createMapWeb(mapEl, lat, lng);
-    } else {
-      await createMapNative(mapEl, lat, lng);
-    }
-  }
-
-  // ── Meeting search ─────────────────────────────────────────────────────────
-
-  /** Called by the "Search this area" button and by programmatic moves with intent. */
-  function searchThisArea(): void {
-    if (!idleBounds) return;
-    showSearchHere = false;
-    const { centerLat, centerLng, swLat, swLng } = idleBounds;
-    doGetMeetings(centerLat, centerLng, swLat, swLng);
-  }
-
-  function doGetMeetings(centerLat: number, centerLng: number, swLat: number, swLng: number): void {
-    // Compute search radius from center to SW corner of visible bounds.
-    // google.maps is available because loadMapsApi() ran on web, or because
-    // @capacitor/google-maps injects it on native.
-    let radiusKm = 20; // sensible fallback if geometry is unavailable
+  async function teardown() {
+    const instance = map;
+    if (!instance) return;
     try {
-      const distM = (google.maps.geometry.spherical.computeDistanceBetween as (a: unknown, b: unknown) => number)(new google.maps.LatLng(centerLat, centerLng), new google.maps.LatLng(swLat, swLng));
-      radiusKm = Math.ceil(distM / 1000);
+      await instance.destroy();
     } catch {
-      // google.maps.geometry not available yet — use fallback
-    }
-
-    searching = true;
-
-    getRadiusMeetings(centerLat, centerLng, radiusKm)
-      .then(async (meetings) => {
-        lastFetchedMeetings = meetings as Meeting[];
-        await removeMarkers();
-        await addMarkers(lastFetchedMeetings);
-
-        // Resolve format names for the fetched batch.
-        // SvelteSet used here so the svelte/prefer-svelte-reactivity lint rule is satisfied.
-        // Nothing renders from this set — it is just an accumulator for format ID deduplication.
-        const allIds = new SvelteSet<string>();
-        for (const m of lastFetchedMeetings) {
-          for (const id of m.format_shared_id_list.split(',')) {
-            const trimmed = id.trim();
-            if (trimmed) allIds.add(trimmed);
-          }
-        }
-        if (allIds.size > 0) {
-          detailFormats = await getFormats(allIds, settings.language);
-        }
-      })
-      .catch((err) => {
-        console.error('getRadiusMeetings failed:', err);
-      })
-      .finally(() => {
-        searching = false;
-        showSearchHere = false;
-      });
-  }
-
-  // ── Marker grouping ────────────────────────────────────────────────────────
-
-  /**
-   * Group co-located meetings into buckets keyed by rounded lat/lng (~111m).
-   * Two meetings at the same venue share one marker; meetingIds carries all IDs.
-   */
-  function groupMeetings(meetings: Meeting[]): Array<{ lat: number; lng: number; meetingIds: string }> {
-    // SvelteMap used so the svelte/prefer-svelte-reactivity lint rule is satisfied.
-    // Nothing renders from this map.
-    const groups = new SvelteMap<string, Meeting[]>();
-    for (const m of meetings) {
-      const lat = parseFloat(m.latitude);
-      const lng = parseFloat(m.longitude);
-      if (isNaN(lat) || isNaN(lng)) continue;
-      const key = `${Math.round(lat * 1000)},${Math.round(lng * 1000)}`;
-      const bucket = groups.get(key) ?? [];
-      bucket.push(m);
-      groups.set(key, bucket);
-    }
-    return Array.from(groups.values()).map((bucket) => ({
-      lat: parseFloat(bucket[0].latitude),
-      lng: parseFloat(bucket[0].longitude),
-      // IDs joined so they can be passed directly to getMeetingsByIds().
-      meetingIds: bucket.map((m) => m.id_bigint).join('&meeting_ids[]=')
-    }));
-  }
-
-  // ── Native marker management ───────────────────────────────────────────────
-
-  async function removeMarkers(): Promise<void> {
-    if (isWeb()) {
-      removeMarkersWeb();
-      return;
-    }
-    if (!gmap || currentMarkerIds.length === 0) return;
-    await gmap.removeMarkers(currentMarkerIds);
-    currentMarkerIds = [];
-  }
-
-  async function addMarkers(meetings: Meeting[]): Promise<void> {
-    if (isWeb()) {
-      addMarkersWeb(meetings);
-      return;
-    }
-    if (!gmap || meetings.length === 0) return;
-
-    const groups = groupMeetings(meetings);
-    const markerDefs = groups.map(({ lat, lng, meetingIds }) => ({
-      coordinate: { lat, lng },
-      title: meetingIds,
-      // iconUrl skips the plugin's PinElement/glyph path, avoiding deprecation warnings.
-      iconUrl: '/marker-blue.png',
-      iconSize: { width: 70, height: 84 },
-      iconAnchor: { x: 35, y: 84 }
-    }));
-
-    const ids = await gmap.addMarkers(markerDefs);
-    currentMarkerIds = ids;
-
-    // Enable clustering after markers are added so the clusterer picks them up.
-    await gmap.enableClustering(4);
-  }
-
-  // ── Web marker management (AdvancedMarkerElement + MarkerClusterer) ────────
-
-  /**
-   * Custom renderer: uses marker-blue.png for single-location pins and
-   * marker-red.png for clustered pins (count > 1), with a count label.
-   * Uses the legacy google.maps.Marker for cluster pins so a text label can
-   * be composited on top without needing a DOM element per cluster.
-   */
-  const webClusterRenderer: Renderer = {
-    render(cluster: Cluster, _stats: ClusterStats, map: google.maps.Map): google.maps.marker.AdvancedMarkerElement {
-      const { count, position } = cluster;
-      const isCluster = count > 1;
-
-      const img = document.createElement('img');
-      img.src = isCluster ? '/marker-red.png' : '/marker-blue.png';
-      img.width = 70;
-      img.height = 84;
-      img.style.display = 'block';
-
-      // The count is shown as a solid pill badge above the pin rather than
-      // overlaid on the NA logo, so both are clearly readable.
-      if (isCluster) {
-        const wrapper = document.createElement('div');
-        wrapper.style.cssText = 'position:relative;display:inline-block;text-align:center;';
-
-        const badge = document.createElement('div');
-        badge.textContent = String(count);
-        badge.style.cssText =
-          'display:inline-block;margin-bottom:2px;' +
-          'background:#b91c1c;color:#fff;' +
-          'font-size:12px;font-weight:700;line-height:1;' +
-          'padding:3px 7px;border-radius:999px;' +
-          'border:2px solid #fff;' +
-          'box-shadow:0 1px 3px rgba(0,0,0,.45);' +
-          'pointer-events:none;white-space:nowrap;';
-
-        wrapper.appendChild(badge);
-        wrapper.appendChild(img);
-        return new google.maps.marker.AdvancedMarkerElement({
-          map,
-          position,
-          content: wrapper,
-          zIndex: 1000 + count
-        });
-      }
-
-      return new google.maps.marker.AdvancedMarkerElement({
-        map,
-        position,
-        content: img,
-        zIndex: 1
-      });
-    }
-  };
-
-  function removeMarkersWeb(): void {
-    if (webMarkerClusterer) {
-      webMarkerClusterer.clearMarkers();
-      webMarkerClusterer.setMap(null);
-      webMarkerClusterer = null;
+      // Map might already be gone.
     }
   }
 
-  function addMarkersWeb(meetings: Meeting[]): void {
-    if (!webGoogleMap || meetings.length === 0) return;
+  // ───────────────────────────────────────────────────────────────────────────
+  // Camera helpers
+  // ───────────────────────────────────────────────────────────────────────────
 
-    const groups = groupMeetings(meetings);
-    const AdvancedMarkerElement = google.maps.marker.AdvancedMarkerElement;
-
-    const markers = groups.map(({ lat, lng, meetingIds }) => {
-      const img = document.createElement('img');
-      img.src = '/marker-blue.png';
-      img.width = 70;
-      img.height = 84;
-      img.style.display = 'block';
-
-      const marker = new AdvancedMarkerElement({
-        position: { lat, lng },
-        content: img,
-        zIndex: 1
-      });
-
-      marker.addListener('click', () => {
-        openDetail(meetingIds);
-      });
-
-      return marker;
-    });
-
-    webMarkerClusterer = new MarkerClusterer({
-      map: webGoogleMap,
-      markers,
-      algorithm: new SuperClusterAlgorithm({ minPoints: 4 }),
-      renderer: webClusterRenderer
-    });
-  }
-
-  // ── Meeting detail panel ───────────────────────────────────────────────────
-
-  async function openDetail(meetingIds: string): Promise<void> {
-    if (!meetingIds) return;
-
-    // Try to resolve meetings from the last fetched batch without a network
-    // round-trip. The marker title encodes IDs as "1&meeting_ids[]=2&...", so
-    // split on the separator to recover them.
-    const ids = meetingIds
-      .split('&meeting_ids[]=')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const cached = lastFetchedMeetings.filter((m) => ids.includes(m.id_bigint));
-    if (cached.length > 0) {
-      detailMeetings = cached;
-      detailOpen = true;
-      return;
-    }
-
-    // Fallback: fetch from BMLT (e.g. cold open from a deep-link or stale cache).
-    detailLoading = true;
+  async function moveCamera(config: { coordinate?: LatLng; zoom?: number }) {
     try {
-      const meetings = await getMeetingsByIds(meetingIds);
-      detailMeetings = meetings as Meeting[];
-      detailOpen = true;
-    } catch (err) {
-      console.error('getMeetingsByIds failed:', err);
+      await map?.setCamera({
+        coordinate: config.coordinate,
+        zoom: config.zoom
+      });
+    } catch {
+      // A move can fail if the element is removed before it completes.
+    }
+  }
+
+  function nextFrame(): Promise<void> {
+    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  }
+
+  async function waitForLayout(element: HTMLElement, attempts = 30): Promise<boolean> {
+    for (let i = 0; i < attempts; i++) {
+      const { width, height } = element.getBoundingClientRect();
+      if (width > 0 && height > 0) return true;
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    }
+    return false;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Camera idle handler
+  // ───────────────────────────────────────────────────────────────────────────
+
+  async function onCameraIdle(event: CameraIdleCallbackData) {
+    if (!mapReady) return;
+
+    // Programmatic moves (locate, suggestion pick) must not trigger a search —
+    // the caller already handles what should happen next.
+    if (programmaticMove) {
+      programmaticMove = false;
+      return;
+    }
+
+    // Normalise the plugin's callback data into the shape the rest of the
+    // component uses: a centre LatLng and a southwest LatLng.
+    const centre: LatLng = { lat: event.latitude, lng: event.longitude };
+    const sw: LatLng = { lat: event.bounds.southwest.lat, lng: event.bounds.southwest.lng };
+    const normEvent = { zoom: event.zoom, bounds: { center: centre, southwest: sw } };
+
+    // If nothing changed from last idle, it's noise — skip.
+    if (searchAfterMove && lastCamera && normEvent.bounds.center.lat === lastCamera.bounds.center.lat && normEvent.bounds.center.lng === lastCamera.bounds.center.lng) {
+      return;
+    }
+
+    lastCamera = normEvent;
+
+    if (normEvent.zoom < MIN_SEARCH_ZOOM) {
+      // Zoomed too far out to search — hide the button.
+      canSearchArea = false;
+      searchAfterMove = false;
+      return;
+    }
+
+    if (!searchAfterMove) {
+      // First idle after mount (or after a programmatic move with intent to
+      // search): run the search immediately so the map is never blank on open.
+      await runSearch(normEvent);
+      searchAfterMove = true;
+    } else {
+      // Subsequent user pans/zooms: show the "Search this area" button instead
+      // of re-searching automatically on every move.
+      canSearchArea = true;
+    }
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Search
+  // ───────────────────────────────────────────────────────────────────────────
+
+  async function runSearch(event: { zoom: number; bounds: { center: LatLng; southwest: LatLng } }) {
+    const sequence = ++searchSequence;
+    const radiusKm = distanceKm(event.bounds.center, event.bounds.southwest);
+
+    const release = loading.begin(t('FINDING_MTGS'));
+    try {
+      const meetings = await meetingsWithinRadius(event.bounds.center.lat, event.bounds.center.lng, Math.ceil(radiusKm));
+
+      // A newer search arrived while this one was in flight — discard.
+      if (sequence !== searchSequence) return;
+
+      canSearchArea = false;
+      await drawMarkers(meetings);
+    } catch (e) {
+      if (sequence === searchSequence) {
+        error = String((e as Error).message ?? e);
+      }
+    } finally {
+      release();
+    }
+  }
+
+  function searchThisArea() {
+    if (!lastCamera || lastCamera.zoom < MIN_SEARCH_ZOOM) return;
+    canSearchArea = false;
+    runSearch(lastCamera);
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Markers
+  // ───────────────────────────────────────────────────────────────────────────
+
+  async function drawMarkers(meetings: Meeting[]) {
+    if (!map) return;
+
+    // Remove old markers
+    for (const id of placedMarkerIds) {
+      await map.removeMarker(id);
+    }
+    placedMarkerIds = [];
+    markerIds.clear();
+
+    const markers = buildMarkers(meetings);
+    if (markers.length === 0) return;
+
+    const markerDefs = markers.map((m) => ({
+      coordinate: m.coordinate,
+      iconUrl: iconFor(m),
+      title: m.ids.join(',')
+    }));
+
+    // addMarkers returns the placed marker IDs in the same order as markerDefs
+    const placed = await map.addMarkers(markerDefs as Parameters<typeof map.addMarkers>[0]);
+    placedMarkerIds = placed;
+
+    // Build the reverse lookup: markerId → meeting ids array
+    placed.forEach((markerId, i) => {
+      markerIds.set(markerId, markers[i].ids);
+    });
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Marker click → detail sheet
+  // ───────────────────────────────────────────────────────────────────────────
+
+  async function onMarkerClick(data: MarkerClickCallbackData) {
+    const ids = markerIds.get(data.markerId);
+    if (!ids?.length) return;
+
+    detailLoading = true;
+    detailOpen = true;
+    detailMeetings = [];
+    detailFormats = {};
+
+    try {
+      const meetings = await getMeetingsByIds(ids.join(','));
+      detailMeetings = meetings;
+
+      // SvelteSet required by svelte/prefer-svelte-reactivity; nothing renders from it.
+      const allFormatIds = new SvelteSet<string>();
+      for (const m of meetings) {
+        m.format_shared_id_list.split(',').forEach((id) => allFormatIds.add(id.trim()));
+      }
+      if (allFormatIds.size > 0) {
+        detailFormats = await getFormats(allFormatIds, settings.language);
+      }
+    } catch (e) {
+      error = String((e as Error).message ?? e);
     } finally {
       detailLoading = false;
     }
   }
 
-  function closeDetail(): void {
+  function closeDetail() {
     detailOpen = false;
     detailMeetings = [];
+    detailFormats = {};
   }
 
-  // ── Locate me ──────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
+  // Location
+  // ───────────────────────────────────────────────────────────────────────────
 
-  /** Shown when locateMe fails — cleared after 3 s. */
-  let locationError = $state(false);
+  async function getCurrentPosition(timeoutMs = 10_000): Promise<LatLng> {
+    const position = await Geolocation.getCurrentPosition({
+      timeout: timeoutMs,
+      enableHighAccuracy: false,
+      maximumAge: 60_000
+    });
+    return { lat: position.coords.latitude, lng: position.coords.longitude };
+  }
 
-  async function locateMe(): Promise<void> {
+  async function locateAndRecentre() {
     try {
-      const pos = await Geolocation.getCurrentPosition();
-      moveCamera(pos.coords.latitude, pos.coords.longitude, 10);
-    } catch (err) {
-      console.error('Geolocation failed:', err);
-      locationError = true;
-      setTimeout(() => {
-        locationError = false;
-      }, 3000);
+      const fix = await getCurrentPosition(6000);
+      programmaticMove = true;
+      await moveCamera({ coordinate: fix });
+    } catch {
+      // Silently ignore — the map is still visible at its last position.
     }
   }
 
-  // ── Autocomplete ───────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
+  // Places search
+  // ───────────────────────────────────────────────────────────────────────────
 
-  function onSearchInput(): void {
-    if (autocompleteDebounce) clearTimeout(autocompleteDebounce);
-    const value = searchInput;
-
-    if (!value) {
+  async function onSearchInput(event: Event & { currentTarget: HTMLInputElement }) {
+    queryText = event.currentTarget.value;
+    if (!queryText) {
       suggestions = [];
       return;
     }
-
-    autocompleteDebounce = setTimeout(async () => {
-      if (isNative()) {
-        suggestions = await autocompletePlaces(value, settings.language);
-      } else {
-        // Web path: use the JS SDK AutocompleteSuggestion API.
-        suggestions = await fetchWebSuggestions(value);
-      }
-    }, 250);
-  }
-
-  async function fetchWebSuggestions(input: string): Promise<PlaceSuggestion[]> {
-    try {
-      await loadMapsApi();
-      const { AutocompleteSuggestion } = (await google.maps.importLibrary('places')) as google.maps.PlacesLibrary;
-      const response = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
-        input,
-        language: settings.language
-      });
-      if (!response?.suggestions) return [];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return response.suggestions.map((s: any) => ({
-        description: s.placePrediction?.text?.toString() ?? '',
-        placeId: s.placePrediction?.placeId ?? ''
-      }));
-    } catch {
-      return [];
+    if (!sessionToken) {
+      sessionToken = await newSessionToken();
     }
+    suggestions = await suggestPlaces(queryText, settings.language, sessionToken);
   }
 
-  async function selectSuggestion(item: PlaceSuggestion): Promise<void> {
+  async function choose(suggestion: PlaceSuggestion) {
+    queryText = suggestion.description;
     suggestions = [];
-    searchInput = item.description;
+    sessionToken = undefined;
 
-    const coords: { lat: number; lng: number } | null = isNative()
-      ? ((await geocodePlace(item.placeId)) ?? (await geocodeAddressRest(item.description)))
-      : await geocodeWebPlace(item.placeId, item.description);
-
-    if (coords) {
-      moveCamera(coords.lat, coords.lng, 10);
-    }
-  }
-
-  async function geocodeWebPlace(placeId: string, fallbackAddress: string): Promise<{ lat: number; lng: number } | null> {
-    try {
-      await loadMapsApi();
-      const { Place } = (await google.maps.importLibrary('places')) as google.maps.PlacesLibrary;
-      const place = new Place({ id: placeId });
-      await place.fetchFields({ fields: ['location'] });
-      if (place?.location) {
-        const lat = place.location.lat();
-        const lng = place.location.lng();
-        if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+    const location = await placeLocation(suggestion.placeId, suggestion.description);
+    if (location) {
+      programmaticMove = true;
+      await moveCamera({ coordinate: location, zoom: 14 });
+      // Trigger an immediate search at the chosen location
+      if (lastCamera) {
+        runSearch({ ...lastCamera, bounds: { center: location, southwest: lastCamera.bounds.southwest } });
       }
-    } catch {
-      // Fall through to geocoder fallback
-    }
-
-    // Fallback: Geocoding API via JS SDK
-    try {
-      await loadMapsApi();
-      return await new Promise((resolve) => {
-        const geocoder = new google.maps.Geocoder();
-        geocoder.geocode({ address: fallbackAddress }, (results, status) => {
-          if (status === google.maps.GeocoderStatus.OK && results?.[0]) {
-            const loc = results[0].geometry.location;
-            resolve({ lat: loc.lat(), lng: loc.lng() });
-          } else {
-            resolve(null);
-          }
-        });
-      });
-    } catch {
-      return null;
     }
   }
 
-  function clearSearch(): void {
-    searchInput = '';
+  function clearSearch() {
+    queryText = '';
     suggestions = [];
   }
 
-  // ── Mount / destroy ────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
+  // Lifecycle
+  // ───────────────────────────────────────────────────────────────────────────
 
-  onMount(async () => {
-    if (!hasKey) return;
-
-    // Android: make the webview transparent so the native map view shows through.
+  onMount(() => {
+    // Android: the native map renders beneath the webview, so every layer
+    // above it must be transparent or the map is invisible.
     if (isAndroid()) {
-      document.documentElement.classList.add('map-underlay');
+      document.body.classList.add('map-underlay');
     }
-
-    // On web, load the JS SDK first so google.maps is available for autocomplete
-    // and geometry computations in the cameraIdle handler.
-    if (isWeb()) {
-      await loadMapsApi();
-    }
-
-    // Start the map immediately at the Dublin default so the user sees a map
-    // straight away rather than waiting up to 5 s for GPS. GPS runs in parallel
-    // and moves the camera (and triggers the first search) when it resolves.
-    const DUBLIN_LAT = 53.3498;
-    const DUBLIN_LNG = -6.2603;
-
-    // Fire GPS and map creation concurrently.
-    const [, pos] = await Promise.allSettled([createMap(DUBLIN_LAT, DUBLIN_LNG), Geolocation.getCurrentPosition({ timeout: 5000 })]);
-
-    // If GPS resolved, move the camera.
-    if (pos.status === 'fulfilled') {
-      moveCamera(pos.value.coords.latitude, pos.value.coords.longitude, 10);
-    }
+    start();
   });
 
-  onDestroy(() => {
-    if (autocompleteDebounce) clearTimeout(autocompleteDebounce);
-
-    // Remove the Android transparency class so other screens get their backgrounds back.
-    document.documentElement.classList.remove('map-underlay');
-
-    // Web: tear down the clusterer; the google.maps.Map is GC'd with the DOM element.
-    removeMarkersWeb();
-    webGoogleMap = null;
-
-    // Native: destroy the plugin map instance.
-    if (gmap) {
-      gmap.removeAllMapListeners();
-      gmap.destroy();
-      gmap = null;
+  onDestroy(async () => {
+    if (isAndroid()) {
+      document.body.classList.remove('map-underlay');
     }
+    await teardown();
   });
 </script>
 
+<svelte:head><title>{t('MAP_SEARCH')}</title></svelte:head>
+
 {#if !hasKey}
-  <!-- No key configured — show a friendly message instead of a blank screen -->
   <div class="flex h-full flex-col items-center justify-center gap-3 px-8 py-20 text-center">
     <MapPin class="h-12 w-12 text-[var(--text-muted)]" />
     <p class="text-sm text-[var(--text-muted)]">Map not configured — add Google Maps keys to your environment variables.</p>
   </div>
 {:else}
-  <!--
-    The map fills the available viewport. On Android every element rendered
-    above the <capacitor-google-map> must carry an explicit opaque background —
-    the app-shell's transparency reveals the native layer beneath. The search
-    bar and suggestion list use bg-[var(--surface-raised)] for this purpose.
-    The map container itself is transparent (the plugin needs this).
-  -->
-  <!--
-    app-main adds padding-bottom to clear the fixed bottom nav on every page.
-    Reclaim that padding with a matching negative margin so the container
-    reaches the bottom of the viewport, then stop the map element itself at the
-    nav bar top edge (3.5rem h-14 + safe area) so it doesn't draw behind the nav.
-  -->
   <div class="relative -mb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] w-full flex-1 overflow-hidden">
-    <!-- Map element — must be in the DOM before GoogleMap.create() is called -->
-    <capacitor-google-map id="map" style="display: block; position: absolute; inset: 0; bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px)); background: transparent;"></capacitor-google-map>
+    <!-- Map container -->
+    <capacitor-google-map bind:this={mapElement} id="map" class="block" style="position: absolute; inset: 0; bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));"></capacitor-google-map>
 
-    <!-- ── Search bar (opaque on Android) ────────────────────────────────── -->
+    <!-- Error state -->
+    {#if error}
+      <div class="absolute top-20 left-1/2 z-20 -translate-x-1/2 rounded-xl bg-[var(--surface-raised)] px-4 py-3 shadow-md" role="alert">
+        <p class="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <button
+          type="button"
+          onclick={() => {
+            error = '';
+            start();
+          }}
+          class="mt-1 text-xs text-[var(--text-muted)] underline"
+        >
+          Retry
+        </button>
+      </div>
+    {/if}
+
+    <!-- Search bar -->
     <div class="absolute top-2 right-2 left-2 z-10">
       <div class="flex items-center gap-2 rounded-xl bg-[var(--surface-raised)] px-3 py-2 shadow-md">
-        <MapPin class="h-4 w-4 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
-        <input
-          type="text"
-          bind:value={searchInput}
-          oninput={onSearchInput}
-          placeholder={t('FINDING_MTGS')}
-          class="min-w-0 flex-1 bg-transparent text-sm text-[var(--text)] outline-none placeholder:text-[var(--text-muted)]"
-          aria-label="Search for a place"
-          autocomplete="off"
-        />
-        {#if searchInput}
-          <button type="button" onclick={clearSearch} class="shrink-0 rounded-full p-0.5 text-[var(--text-muted)] hover:text-[var(--text)]" aria-label="Clear search">
+        <Search class="h-4 w-4 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
+        <input type="text" placeholder={t('SEARCH_PLACEHOLDER')} value={queryText} oninput={onSearchInput} class="flex-1 bg-transparent outline-none" aria-label={t('SEARCH_PLACEHOLDER')} />
+        {#if queryText}
+          <button type="button" onclick={clearSearch} class="shrink-0 rounded-full p-0.5 text-[var(--text-muted)] hover:text-[var(--text)]" aria-label={t('CANCEL')}>
             <X class="h-4 w-4" />
           </button>
         {/if}
-        <!-- Locate me button -->
-        <button type="button" onclick={locateMe} class="shrink-0 rounded-full p-1 text-[#000090] hover:bg-[var(--surface-sunken)] dark:text-blue-400" aria-label={t('LOCATING')}>
-          <LocateFixed class="h-5 w-5" />
-        </button>
       </div>
 
-      <!-- ── Autocomplete suggestion list ─────────────────────────────────── -->
+      <!-- Autocomplete suggestions -->
       {#if suggestions.length > 0}
         <ul role="listbox" aria-label="Place suggestions" class="mt-1 overflow-hidden rounded-xl bg-[var(--surface-raised)] shadow-md">
           {#each suggestions as item, i (i)}
             <li role="option" aria-selected="false">
-              <button
-                type="button"
-                onclick={() => selectSuggestion(item)}
-                class="focusable flex w-full items-start gap-2 px-4 py-3 text-left text-sm text-[var(--text)] hover:bg-[var(--surface-sunken)] active:bg-[var(--surface-sunken)]"
-              >
+              <button type="button" onclick={() => choose(item)} class="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-[var(--surface-sunken)]">
                 <MapPin class="mt-0.5 h-4 w-4 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
-                <span class="line-clamp-2">{item.description}</span>
+                <span class="line-clamp-2 text-sm">{item.description}</span>
               </button>
             </li>
           {/each}
@@ -711,31 +469,38 @@
       {/if}
     </div>
 
-    <!-- ── Search this area button ──────────────────────────────────────── -->
-    {#if showSearchHere && !searching}
-      <div class="absolute top-16 left-1/2 z-10 -translate-x-1/2">
-        <button
-          type="button"
-          onclick={searchThisArea}
-          class="flex items-center gap-2 rounded-full bg-[var(--surface-raised)] px-4 py-2 text-sm font-medium text-[var(--text)] shadow-md active:bg-[var(--surface-sunken)]"
-        >
-          <MapPin class="h-4 w-4 shrink-0 text-[#000090] dark:text-blue-400" aria-hidden="true" />
-          {t('SEARCH_THIS_AREA')}
+    <!-- Locate button -->
+    <button
+      type="button"
+      onclick={locateAndRecentre}
+      class="absolute top-16 right-3 z-10 rounded-full bg-[var(--surface-raised)] p-2.5 shadow-md hover:bg-[var(--surface-sunken)]"
+      aria-label={t('LOCATING')}
+    >
+      <LocateFixed class="h-5 w-5 text-[#000090] dark:text-blue-400" />
+    </button>
+
+    <!-- Search this area button — only shown when zoom is sufficient and the
+		     viewport has moved meaningfully since the last search -->
+    {#if canSearchArea}
+      <div class="absolute bottom-24 left-1/2 z-10 -translate-x-1/2">
+        <button type="button" onclick={searchThisArea} class="flex items-center gap-2 rounded-full bg-[var(--surface-raised)] px-4 py-2 text-sm font-medium shadow-md hover:bg-[var(--surface-sunken)]">
+          <RotateCw class="h-4 w-4 text-[#000090] dark:text-blue-400" aria-hidden="true" />
+          {t('SEARCH_AREA')}
         </button>
       </div>
     {/if}
 
-    <!-- ── Searching spinner ─────────────────────────────────────────────── -->
-    {#if searching}
+    <!-- Loading indicator -->
+    {#if loading.active}
       <div class="absolute bottom-24 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[var(--surface-raised)] px-4 py-2 shadow-md" role="status" aria-live="polite">
         <span class="flex items-center gap-2 text-xs text-[var(--text-muted)]">
           <span class="h-3 w-3 animate-spin rounded-full border-2 border-[#000090] border-t-transparent dark:border-blue-400"></span>
-          {t('SEARCHING')}
+          {loading.message || t('FINDING_MTGS')}
         </span>
       </div>
     {/if}
 
-    <!-- ── Marker-tap loading indicator ─────────────────────────────────── -->
+    <!-- Detail sheet loading indicator -->
     {#if detailLoading}
       <div class="absolute bottom-24 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[var(--surface-raised)] px-4 py-2 shadow-md" role="status" aria-live="polite">
         <span class="flex items-center gap-2 text-xs text-[var(--text-muted)]">
@@ -744,16 +509,9 @@
         </span>
       </div>
     {/if}
-
-    <!-- ── Location error toast ──────────────────────────────────────────── -->
-    {#if locationError}
-      <div class="absolute bottom-24 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[var(--surface-raised)] px-4 py-2 shadow-md" role="alert" aria-live="assertive">
-        <span class="text-xs text-red-600 dark:text-red-400">{t('LOCATION_ERROR')}</span>
-      </div>
-    {/if}
   </div>
 
-  <!-- ── Meeting detail panel ──────────────────────────────────────────────── -->
+  <!-- Detail sheet -->
   {#if detailOpen}
     <MeetingDetail meetings={detailMeetings} formatNames={detailFormats} onClose={closeDetail} />
   {/if}

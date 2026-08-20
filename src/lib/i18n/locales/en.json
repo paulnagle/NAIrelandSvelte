@@ -134,5 +134,8 @@
   "Waterford": "Waterford",
   "Westmeath": "Westmeath",
   "Wexford": "Wexford",
-  "Wicklow": "Wicklow"
+  "Wicklow": "Wicklow",
+  "MAP_SEARCH": "Meetings Map",
+  "SEARCH_AREA": "Search this area",
+  "SEARCH_PLACEHOLDER": "Search…"
 }

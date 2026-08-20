@@ -1,39 +1,7 @@
 import { httpGet } from './http.ts';
+import type { Meeting } from '$lib/meetings/types.js';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-/** A single BMLT meeting record as returned by GetSearchResults. */
-export interface Meeting {
-  id_bigint: string;
-  meeting_name: string;
-  weekday_tinyint: string;
-  start_time: string;
-  duration_time: string;
-  time_zone: string;
-  venue_type: string;
-  location_text: string;
-  location_info: string;
-  location_street: string;
-  location_neighborhood: string;
-  location_municipality: string;
-  location_sub_province: string;
-  location_province: string;
-  location_postal_code_1: string;
-  latitude: string;
-  longitude: string;
-  format_shared_id_list: string;
-  formats: string;
-  comments: string;
-  virtual_meeting_link: string;
-  phone_meeting_number: string;
-  virtual_meeting_additional_info: string;
-  service_body_bigint: string;
-  worldid_mixed: string;
-  root_server_uri: string;
-  [key: string]: string;
-}
+export type { Meeting };
 
 /** A single BMLT service body record as returned by GetServiceBodies. */
 export interface ServiceGroup {
@@ -98,10 +66,30 @@ export async function getRadiusMeetings(lat: number, lng: number, radiusKm: numb
 }
 
 /**
+ * Returns every meeting within a true radius of the given coordinates.
+ * Uses positive geo_width_km, trimmed to coordinates + id only for map use.
+ * Only in-person (venue_type=1) and hybrid (venue_type=3) meetings — virtual
+ * meetings carry arbitrary coordinates and must not appear as map pins.
+ */
+export async function meetingsWithinRadius(lat: number, lng: number, radiusKm: number): Promise<Meeting[]> {
+  const url = IRELAND_BMLT + `?switcher=GetSearchResults&geo_width_km=${radiusKm}&long_val=${lng}&lat_val=${lat}` + `&sort_keys=longitude,latitude&venue_types[]=1&venue_types[]=3&${CALLING_APP}`;
+  return httpGet<Meeting[]>(url);
+}
+
+/**
  * Returns meetings by their comma-separated IDs string.
+ *
+ * BMLT requires `meeting_ids[]` repeated once per id. Passing a comma-joined
+ * string as a single parameter causes the server to treat it as one literal id
+ * and silently return only the first match (or nothing).
  */
 export async function getMeetingsByIds(ids: string): Promise<Meeting[]> {
-  const url = IRELAND_BMLT + `?switcher=GetSearchResults&meeting_ids[]=${ids}&${CALLING_APP}`;
+  const repeated = ids
+    .split(',')
+    .filter(Boolean)
+    .map((id) => `meeting_ids[]=${encodeURIComponent(id.trim())}`)
+    .join('&');
+  const url = IRELAND_BMLT + `?switcher=GetSearchResults&${repeated}&${CALLING_APP}`;
   return httpGet<Meeting[]>(url);
 }
 
