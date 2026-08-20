@@ -280,8 +280,7 @@
 
     const markerDefs = markers.map((m) => ({
       coordinate: m.coordinate,
-      iconUrl: iconFor(m),
-      title: m.ids.join(',')
+      iconUrl: iconFor(m)
     }));
 
     // addMarkers returns the placed marker IDs in the same order as markerDefs
