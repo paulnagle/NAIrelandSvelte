@@ -43,23 +43,22 @@
   let error = $state('');
 
   /**
-   * `false` until the map has received at least one camera-idle event that we
-   * want to act on. The plugin fires idle events during SDK init (before our
-   * opening moveCamera) — those must be ignored. Once `moveCamera` in start()
-   * resolves and we set this to `true`, the very next idle carries the real
-   * opening bounds and triggers the first search.
+   * `false` until the map is ready to handle camera-idle events.
+   * The plugin fires idle events during SDK init — those must be ignored.
+   * Set to `true` after the initial search in start() completes so that
+   * subsequent user-initiated pans can show the "Search this area" button.
    */
   let mapReady = false;
 
   /**
-   * `true` before every programmatic camera move whose idle we do NOT want to
-   * auto-search on (locate-me, suggestion pick). The idle that follows is
-   * skipped and the flag is cleared.
-   *
-   * The opening move in start() leaves this `false` so that the first idle
-   * after startup *does* search — that is how the initial results appear.
+   * `true` before every programmatic camera move (locate-me, suggestion pick)
+   * whose idle we do NOT want to show "Search this area" for. The idle that
+   * follows is skipped and the flag is cleared.
    */
   let programmaticMove = false;
+
+  /** Whether to show the "Search this area" button after a user pan. */
+  let searchAreaVisible = $state(false);
 
   let lastCamera: { zoom: number; bounds: { center: LatLng; southwest: LatLng } } | null = null;
 
@@ -111,12 +110,14 @@
       // Read the actual visible bounds directly — no idle event needed.
       // getMapBounds() returns the real viewport so the initial search covers
       // exactly what is on screen.
-      mapReady = true;
       const bounds = await map!.getMapBounds();
       await runSearch({
         zoom: MIN_SEARCH_ZOOM,
         bounds: { center: bounds.center, southwest: bounds.southwest }
       });
+      // Only after the initial search completes do we allow user pans to show
+      // the "Search this area" button.
+      mapReady = true;
     } catch (e) {
       error = String((e as Error).message ?? e);
     }
@@ -181,11 +182,10 @@
   // Camera idle handler
   // ───────────────────────────────────────────────────────────────────────────
 
-  async function onCameraIdle(event: CameraIdleCallbackData) {
+  function onCameraIdle(event: CameraIdleCallbackData) {
     if (!mapReady) return;
 
-    // Programmatic moves (locate, suggestion pick) must not trigger a search —
-    // the caller already handles what should happen next.
+    // Programmatic moves (locate, suggestion pick) must not show the button.
     if (programmaticMove) {
       programmaticMove = false;
       return;
@@ -208,7 +208,13 @@
     }
 
     lastCamera = normEvent;
-    await runSearch(normEvent);
+    searchAreaVisible = true;
+  }
+
+  async function searchThisArea() {
+    if (!lastCamera) return;
+    searchAreaVisible = false;
+    await runSearch(lastCamera);
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -437,6 +443,15 @@
         </ul>
       {/if}
     </div>
+
+    <!-- Search this area button -->
+    {#if searchAreaVisible}
+      <div class="absolute top-16 left-1/2 z-10 -translate-x-1/2">
+        <button type="button" onclick={searchThisArea} class="rounded-full bg-[var(--surface-raised)] px-4 py-2 text-sm font-medium shadow-md hover:bg-[var(--surface-sunken)]">
+          {t('SEARCH_THIS_AREA')}
+        </button>
+      </div>
+    {/if}
 
     <!-- Locate button -->
     <button
