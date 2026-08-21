@@ -54,7 +54,7 @@
   const milestoneProgress = $derived(cleanDate ? getMilestoneProgress(cleanDate, today) : null);
 </script>
 
-<div class="mx-auto flex max-w-md flex-col gap-5 p-4">
+<div class="flex flex-col gap-5 p-3">
   <!-- Date input -->
   <div class="rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)] p-5 shadow-xs">
     <label for="clean-date" class="mb-2.5 flex items-center gap-2 text-xs font-bold tracking-wider text-[var(--text-muted)] uppercase">
@@ -101,7 +101,7 @@
         <p class="mb-2 text-[11px] font-bold tracking-widest text-indigo-200 uppercase">
           {t('CLEANTIMEINDAYS')}
         </p>
-        <p class="text-5xl font-black tracking-tight text-white select-all">
+        <p class="text-center text-5xl font-black tracking-tight text-white select-all">
           {cleanTime.totalDays.toLocaleString()}
         </p>
       </div>
@@ -177,7 +177,7 @@
         <img src={milestoneProgress.current.image} alt="Current Milestone" class="h-9 w-9 object-contain drop-shadow-xs filter" />
       </div>
       <div class="min-w-0 flex-1">
-        <p class="text-[10px] font-bold tracking-wider text-[var(--text-muted)] uppercase">Current Achievement</p>
+        <p class="text-[10px] font-bold tracking-wider text-[var(--text-muted)] uppercase">Current Keytag</p>
         <p class="truncate text-sm font-extrabold text-[var(--text)]">
           {milestoneProgress.current.amount}{t(milestoneProgress.current.tag)} Keytag
         </p>

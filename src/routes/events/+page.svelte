@@ -10,9 +10,8 @@
   let status = $state<Status>('loading');
   let posts = $state<WpPost[]>([]);
 
-  $effect(() => {
-    pageTitle.value = t('POSTS');
-  });
+  // Improvement #2: direct assignment instead of $effect — pageTitle never changes reactively here.
+  pageTitle.value = t('POSTS');
 
   async function load() {
     status = 'loading';
@@ -24,14 +23,13 @@
     }
   }
 
-  load();
+  // Improvement #5: $effect for the one-shot async load, consistent with project lifecycle patterns.
+  $effect(() => {
+    load();
+  });
 
   async function openPost(url: string) {
     await Browser.open({ url });
-  }
-
-  function formatDate(iso: string): string {
-    return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
   }
 </script>
 
@@ -40,9 +38,15 @@
     <div class="h-10 w-10 animate-spin rounded-full border-4 border-[#000090] border-t-transparent dark:border-blue-400"></div>
   </div>
 {:else if status === 'error'}
+  <!-- Improvement #4: translated error string -->
   <div class="flex flex-col items-center gap-4 px-6 py-20 text-center">
-    <p class="text-red-600">{t('POSTS')} — could not load. Please check your connection.</p>
-    <button onclick={load} class="rounded-md bg-[#000090] px-6 py-2 text-white"> Try again </button>
+    <p class="text-red-600">{t('EVENTS.LOAD_ERROR')}</p>
+    <button onclick={load} class="rounded-md bg-[#000090] px-6 py-2 text-white">{t('EVENTS.RETRY')}</button>
+  </div>
+{:else if posts.length === 0}
+  <!-- Improvement #1: empty state -->
+  <div class="flex flex-col items-center gap-2 px-6 py-20 text-center">
+    <p class="text-[var(--text-muted)]">{t('EVENTS.EMPTY')}</p>
   </div>
 {:else}
   <!-- WordPress content is from the trusted na-ireland.org API -->
@@ -51,15 +55,16 @@
     {#each posts as post, i (i)}
       {@const imageUrl = getPostImage(post)}
       <article class="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-sm">
+        <!-- Improvement #6: image above title -->
+        {#if imageUrl}
+          <!-- Improvement #3: aspect-ratio + bg placeholder eliminates layout shift -->
+          <img src={imageUrl} alt="" class="aspect-[16/9] w-full bg-[var(--surface-sunken)] object-cover" loading="lazy" />
+        {/if}
         <div class="p-4 pb-0">
-          <h2 class="selectable mb-1 text-base font-semibold text-[#000090] dark:text-blue-400">
+          <h2 class="selectable mb-2 text-base font-semibold text-[#000090] dark:text-blue-400">
             {@html post.title.rendered}
           </h2>
-          <p class="mb-2 text-xs font-medium text-[var(--text-muted)]">{formatDate(post.date)}</p>
         </div>
-        {#if imageUrl}
-          <img src={imageUrl} alt="" class="h-48 w-full object-cover" loading="lazy" />
-        {/if}
         <div class="p-4">
           {#if post.excerpt.rendered.trim()}
             <div class="post-excerpt selectable mb-4 text-sm text-[var(--text-muted)]">
