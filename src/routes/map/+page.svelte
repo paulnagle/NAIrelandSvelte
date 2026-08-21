@@ -69,6 +69,7 @@
 
   let lastCamera: { zoom: number; bounds: { center: LatLng; southwest: LatLng } } | null = null;
   let canSearchArea = $state(false);
+  let zoomTooLow = $state(false);
 
   // IDs of markers currently placed on the map, and a map from markerId → meetingIds.
   // SvelteMap so the template re-renders if ever read reactively; plain Map would
@@ -207,18 +208,33 @@
     const normEvent = { zoom: event.zoom, bounds: { center: centre, southwest: sw } };
 
     // If nothing changed from last idle, it's noise — skip.
-    if (searchAfterMove && lastCamera && normEvent.bounds.center.lat === lastCamera.bounds.center.lat && normEvent.bounds.center.lng === lastCamera.bounds.center.lng) {
+    // Also check zoom — a pure pinch gesture keeps the centre fixed but changes
+    // the zoom, and that must not be swallowed here (the zoom threshold below
+    // would never be reached, leaving the button visible at illegal zoom levels).
+    if (
+      searchAfterMove &&
+      lastCamera &&
+      normEvent.bounds.center.lat === lastCamera.bounds.center.lat &&
+      normEvent.bounds.center.lng === lastCamera.bounds.center.lng &&
+      Math.floor(normEvent.zoom) === Math.floor(lastCamera.zoom)
+    ) {
       return;
     }
 
     lastCamera = normEvent;
 
-    if (normEvent.zoom < MIN_SEARCH_ZOOM) {
-      // Zoomed too far out to search — hide the button.
+    // The iOS Google Maps SDK reports fractional zoom values (e.g. 7.9 for what
+    // visually looks like zoom 8). Floor before comparing so the threshold is
+    // evaluated against the integer zoom level the user perceives.
+    if (Math.floor(normEvent.zoom) < MIN_SEARCH_ZOOM) {
+      // Zoomed too far out to search — hide the button and show a hint.
       canSearchArea = false;
+      zoomTooLow = true;
       searchAfterMove = false;
       return;
     }
+
+    zoomTooLow = false;
 
     if (!searchAfterMove) {
       // First idle after mount (or after a programmatic move with intent to
@@ -481,13 +497,19 @@
     </button>
 
     <!-- Search this area button — only shown when zoom is sufficient and the
-		     viewport has moved meaningfully since the last search -->
+       viewport has moved meaningfully since the last search -->
     {#if canSearchArea}
       <div class="absolute bottom-24 left-1/2 z-10 -translate-x-1/2">
         <button type="button" onclick={searchThisArea} class="flex items-center gap-2 rounded-full bg-[var(--surface-raised)] px-4 py-2 text-sm font-medium shadow-md hover:bg-[var(--surface-sunken)]">
           <RotateCw class="h-4 w-4 text-[#000090] dark:text-blue-400" aria-hidden="true" />
           {t('SEARCH_AREA')}
         </button>
+      </div>
+    {:else if zoomTooLow && !loading.active}
+      <div class="absolute bottom-24 left-1/2 z-10 -translate-x-1/2">
+        <p class="rounded-full bg-[var(--surface-raised)] px-4 py-2 text-sm text-[var(--text-muted)] shadow-md">
+          {t('ZOOM_IN_TO_SEARCH')}
+        </p>
       </div>
     {/if}
 

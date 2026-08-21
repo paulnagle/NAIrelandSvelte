@@ -54,20 +54,24 @@
    * card layout that matches the app's design tokens.
    */
 
-  /* Hide the outer page chrome — <html>, <head>, <body> are inert inside
-     {@html}, but the <table> wrapper and copyright row get suppressed visually. */
-  :global(.jft-content table) {
+  /* Hard reset: zero every border inside the injected HTML blob. Tailwind 4's
+     preflight sets border-style:solid on * which makes any UA-supplied
+     border-width render as a visible line. Elements that intentionally have a
+     border (pull-quote, copyright) re-declare it with !important below. */
+  :global(.jft-content *) {
+    border: none !important;
+  }
+
+  /* Table markup is replaced with divs by sanitiseJft, so no table UA styles
+     can bleed through. These rules target the div equivalents. */
+  :global(.jft-content .jft-table) {
     width: 100%;
-    border-collapse: collapse;
   }
 
-  :global(.jft-content tr) {
-    display: block;
-  }
-
-  :global(.jft-content td) {
-    display: block;
-    padding: 0;
+  /* jftna.org uses <br><br> for spacing between sections; suppress them since
+     margins on each element already provide the gaps. */
+  :global(.jft-content br) {
+    display: none;
   }
 
   /* Date heading (h2) */
@@ -91,18 +95,17 @@
   }
 
   /* Page reference line */
-  :global(.jft-content td[align='center']:has(+ td[align='left'] i)) {
+  /* Page reference line — the div before the pull-quote row */
+  :global(.jft-content div[align='center']:has(+ div[align='left'] i)) {
     font-size: 0.8rem;
     color: var(--text-muted);
     margin-bottom: 1rem;
   }
 
-  /* Pull-quote — the 4th <tr> in the table holds the opening italic citation.
-     :first-of-type matches every td (each is the only td in its tr), so we
-     target the row by position instead. */
-  :global(.jft-content tr:nth-child(4) td i) {
+  /* Pull-quote — the 4th .jft-row holds the opening italic citation. */
+  :global(.jft-content .jft-row:nth-child(4) div i) {
     display: block;
-    border-left: 3px solid #000090;
+    border-left: 3px solid #000090 !important;
     padding: 0.5rem 0.75rem;
     margin: 0.75rem 0;
     font-style: italic;
@@ -113,12 +116,12 @@
     line-height: 1.6;
   }
 
-  :global(html.dark .jft-content tr:nth-child(4) td i) {
-    border-left-color: #60a5fa; /* blue-400 */
+  :global(html.dark .jft-content .jft-row:nth-child(4) div i) {
+    border-left-color: #60a5fa !important; /* blue-400 */
   }
 
-  /* Source attribution (e.g. "Basic Text, p. 56") */
-  :global(.jft-content td[align='center']:not(:has(h1)):not(:has(h2)):not(:last-child)) {
+  /* Source attribution (e.g. "IP No.19, Self-Acceptance") */
+  :global(.jft-content div[align='center']:not(:has(h1)):not(:has(h2)):not(:last-child)) {
     font-size: 0.8rem;
     font-style: italic;
     color: var(--text-muted);
@@ -127,7 +130,7 @@
   }
 
   /* Body text paragraphs */
-  :global(.jft-content td[align='left']) {
+  :global(.jft-content div[align='left']) {
     font-size: 0.95rem;
     line-height: 1.7;
     color: var(--text);
@@ -135,25 +138,25 @@
   }
 
   /* "Just for Today:" affirmation — bold lead-in */
-  :global(.jft-content td[align='left'] b) {
+  :global(.jft-content div[align='left'] b) {
     color: #000090;
   }
 
-  :global(html.dark .jft-content td[align='left'] b) {
+  :global(html.dark .jft-content div[align='left'] b) {
     color: #60a5fa; /* blue-400 */
   }
 
-  /* Copyright footer */
-  :global(.jft-content td[align='center']:last-child) {
+  /* Copyright footer — last .jft-row in the table, not last div inside a row */
+  :global(.jft-content .jft-row:last-child div) {
     font-size: 0.75rem;
     color: var(--text-muted);
     text-align: center;
     margin-top: 1.5rem;
     padding-top: 1rem;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--border) !important;
   }
 
-  :global(.jft-content td[align='center']:last-child a) {
+  :global(.jft-content .jft-row:last-child div a) {
     color: var(--text-muted);
     text-decoration: none;
   }

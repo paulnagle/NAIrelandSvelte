@@ -27,6 +27,12 @@ export async function getJft(): Promise<string> {
 /**
  * Strips document boilerplate from a jftna.org HTML response, leaving only
  * the inner body content with <link>, <script>, and <meta> tags removed.
+ *
+ * Table elements (<table>, <tbody>, <tr>, <td>) are replaced with <div>s so
+ * that Tailwind 4's preflight (which sets border-style:solid on every element)
+ * cannot interact with browser UA table-row styling to produce unwanted lines
+ * between rows. The td's align attribute is preserved so existing CSS selectors
+ * (td[align='left'], td[align='center']) continue to work on the divs.
  */
 export function sanitiseJft(html: string): string {
   // Extract just the <body> contents if present; fall back to the full string.
@@ -34,8 +40,20 @@ export function sanitiseJft(html: string): string {
   const inner = bodyMatch ? bodyMatch[1] : html;
 
   // Remove <link>, <script>, and <meta> elements (and their contents).
+  // Also strip the ASCII double-quotes that jftna.org wraps around the pull-quote
+  // italic (<i>…</i>) — the quote block's left-border styling replaces them visually.
   return inner
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
     .replace(/<link\b[^>]*/gi, '')
-    .replace(/<meta\b[^>]*/gi, '');
+    .replace(/<meta\b[^>]*/gi, '')
+    .replace(/"(<i>)/gi, '$1')
+    .replace(/(<\/i>)"/gi, '$1')
+    .replace(/<table\b[^>]*>/gi, '<div class="jft-table">')
+    .replace(/<\/table>/gi, '</div>')
+    .replace(/<tbody\b[^>]*>/gi, '')
+    .replace(/<\/tbody>/gi, '')
+    .replace(/<tr\b[^>]*>/gi, '<div class="jft-row">')
+    .replace(/<\/tr>/gi, '</div>')
+    .replace(/<td\b([^>]*)>/gi, '<div$1>')
+    .replace(/<\/td>/gi, '</div>');
 }

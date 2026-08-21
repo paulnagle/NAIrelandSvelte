@@ -140,5 +140,6 @@
   "Wicklow": "Contae Chill Mhantáin",
   "MAP_SEARCH": "Meetings Map",
   "SEARCH_AREA": "Search this area",
-  "SEARCH_PLACEHOLDER": "Search…"
+  "SEARCH_PLACEHOLDER": "Search…",
+  "ZOOM_IN_TO_SEARCH": "Zoom in to search this area"
 }

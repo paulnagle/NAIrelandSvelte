@@ -4,14 +4,15 @@ import { sanitiseJft } from '$lib/api/jft';
 describe('sanitiseJft', () => {
   it('extracts body content from a full HTML document', () => {
     const html = '<html><head><title>JFT</title></head><body><table>content</table></body></html>';
-    expect(sanitiseJft(html)).toBe('<table>content</table>');
+    expect(sanitiseJft(html)).toBe('<div class="jft-table">content</div>');
   });
 
   it('removes <link> tags', () => {
     const html = '<body><link rel="stylesheet" href="smartphone.css?ver=0.2" /><table>ok</table></body>';
     const result = sanitiseJft(html);
     expect(result).not.toContain('<link');
-    expect(result).toContain('<table>ok</table>');
+    expect(result).not.toContain('<table');
+    expect(result).toContain('ok');
   });
 
   it('removes <script> tags and their content', () => {
@@ -19,14 +20,16 @@ describe('sanitiseJft', () => {
     const result = sanitiseJft(html);
     expect(result).not.toContain('<script');
     expect(result).not.toContain('window.location');
-    expect(result).toContain('<table>ok</table>');
+    expect(result).not.toContain('<table');
+    expect(result).toContain('ok');
   });
 
   it('removes <meta> tags', () => {
     const html = '<body><meta name="viewport" content="width=device-width"><table>ok</table></body>';
     const result = sanitiseJft(html);
     expect(result).not.toContain('<meta');
-    expect(result).toContain('<table>ok</table>');
+    expect(result).not.toContain('<table');
+    expect(result).toContain('ok');
   });
 
   it('handles a real-world jftna.org response shape', () => {
@@ -51,12 +54,26 @@ window.location.href = "/?tz=Europe/Dublin";
     expect(result).not.toContain('<meta');
     expect(result).not.toContain('<script');
     expect(result).not.toContain('window.location');
-    expect(result).toContain('<table');
+    expect(result).not.toContain('<table');
+    expect(result).not.toContain('<tr');
+    expect(result).not.toContain('<td');
+    expect(result).toContain('jft-table');
     expect(result).toContain('August 19, 2026');
   });
 
   it('falls back to the full string when there is no <body> tag', () => {
+    // No body tag — table-to-div replacement still runs on the raw string
     const html = '<table><tr><td>fallback</td></tr></table>';
-    expect(sanitiseJft(html)).toBe(html);
+    const result = sanitiseJft(html);
+    expect(result).not.toContain('<table');
+    expect(result).toContain('fallback');
+  });
+
+  it('strips double-quotes wrapping the pull-quote italic', () => {
+    const html = '<body><td>"<i>Our friendships become deep.</i>"</td></body>';
+    const result = sanitiseJft(html);
+    expect(result).not.toContain('"<i>');
+    expect(result).not.toContain('</i>"');
+    expect(result).toContain('<i>Our friendships become deep.</i>');
   });
 });
