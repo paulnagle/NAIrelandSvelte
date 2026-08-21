@@ -124,6 +124,9 @@
         zoom: MIN_SEARCH_ZOOM,
         bounds: { center: bounds.center, southwest: bounds.southwest }
       });
+      // Mark the initial search as done so that the first user-driven
+      // camera-idle does not auto-search again.
+      searchAfterMove = true;
     } catch (e) {
       error = String((e as Error).message ?? e);
     }
@@ -377,12 +380,11 @@
 
     const location = await placeLocation(suggestion.placeId, suggestion.description);
     if (location) {
-      programmaticMove = true;
+      // Reset searchAfterMove so the idle that follows the camera move runs
+      // one immediate search at the new position (same path as startup), then
+      // sets searchAfterMove = true so subsequent user pans show the button.
+      searchAfterMove = false;
       await moveCamera({ coordinate: location, zoom: 14 });
-      // Trigger an immediate search at the chosen location
-      if (lastCamera) {
-        runSearch({ ...lastCamera, bounds: { center: location, southwest: lastCamera.bounds.southwest } });
-      }
     }
   }
 

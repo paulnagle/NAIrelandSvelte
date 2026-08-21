@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getCleanTime, getCleanTimeTag } from '$lib/meetings/cleantime';
+import { getCleanTime, getCleanTimeTag, getMilestoneProgress } from '$lib/meetings/cleantime';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -188,5 +188,57 @@ describe('getCleanTimeTag — no milestone', () => {
     expect(tag.tag).toBe('none');
     expect(tag.amount).toBe(0);
     expect(tag.image).toBe('');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getMilestoneProgress
+// ---------------------------------------------------------------------------
+
+describe('getMilestoneProgress', () => {
+  it('calculates progress before the first milestone (1 day)', () => {
+    const progress = getMilestoneProgress(d('2024-01-01'), d('2024-01-01'));
+    expect(progress.current).toBeNull();
+    expect(progress.next.tag).toBe('DAYCLEAN');
+    expect(progress.next.amount).toBe(1);
+    expect(progress.next.daysRemaining).toBe(1);
+    expect(progress.next.percent).toBe(0);
+  });
+
+  it('calculates progress between 1 day and 30 days milestones', () => {
+    // 10 days since clean date: 1-day achieved (Jan 2), 30-days is next (Jan 31)
+    const progress = getMilestoneProgress(d('2024-01-01'), d('2024-01-11'));
+    expect(progress.current?.tag).toBe('DAYCLEAN');
+    expect(progress.current?.amount).toBe(1);
+    expect(progress.next.tag).toBe('DAYSCLEAN');
+    expect(progress.next.amount).toBe(30);
+    expect(progress.next.daysRemaining).toBe(20);
+    // Interval from Jan 2 to Jan 31 = 29 days total. Elapsed from Jan 2 to Jan 11 = 9 days.
+    // 9 / 29 = 31.0% -> 31%
+    expect(progress.next.percent).toBe(31);
+  });
+
+  it('calculates progress exactly on milestone day', () => {
+    // 30 days in: 30-days achieved, 60-days is next
+    const progress = getMilestoneProgress(d('2024-01-01'), d('2024-01-31'));
+    expect(progress.current?.tag).toBe('DAYSCLEAN');
+    expect(progress.current?.amount).toBe(30);
+    expect(progress.next.tag).toBe('DAYSCLEAN');
+    expect(progress.next.amount).toBe(60);
+    expect(progress.next.daysRemaining).toBe(30);
+    expect(progress.next.percent).toBe(0);
+  });
+
+  it('calculates progress for multi-year milestones', () => {
+    // Clean date: 2020-01-01. Today: 2022-06-01.
+    // Achieved 2 years on 2022-01-01. Next is 3 years on 2023-01-01.
+    const progress = getMilestoneProgress(d('2020-01-01'), d('2022-06-01'));
+    expect(progress.current?.tag).toBe('YEARSCLEAN');
+    expect(progress.current?.amount).toBe(2);
+    expect(progress.next.tag).toBe('YEARSCLEAN');
+    expect(progress.next.amount).toBe(3);
+    // Days from 2022-01-01 to 2023-01-01 is 365. Elapsed from 2022-01-01 to 2022-06-01 is 151 days.
+    // 151 / 365 = 41.3% -> 41%
+    expect(progress.next.percent).toBe(41);
   });
 });

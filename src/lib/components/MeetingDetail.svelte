@@ -24,9 +24,9 @@
 <!-- Panel -->
 <div role="dialog" aria-modal="true" aria-label="Meeting details" class="fixed right-0 bottom-0 left-0 z-[70] flex max-h-[80dvh] flex-col rounded-t-2xl bg-[var(--surface)] shadow-2xl">
   <!-- Handle + close -->
-  <div class="flex shrink-0 items-center justify-between px-4 pt-3 pb-2">
-    <!-- Drag handle — tapping it closes the panel, matching user expectation -->
-    <button type="button" onclick={onClose} class="mx-auto h-1 w-12 rounded-full bg-[var(--border)]" aria-label="Close"></button>
+  <div class="relative flex shrink-0 items-center px-4 pt-3 pb-2">
+    <!-- Drag handle — absolutely centred so it doesn't affect the close button position -->
+    <button type="button" onclick={onClose} class="absolute left-1/2 h-1 w-12 -translate-x-1/2 rounded-full bg-[var(--border)]" aria-label="Close"></button>
     <button type="button" onclick={onClose} class="focusable ml-auto rounded-full p-1 text-[var(--text-muted)] hover:text-[var(--text)]" aria-label="Close">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />

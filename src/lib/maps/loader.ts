@@ -1,6 +1,6 @@
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 import { webKey } from './keys.js';
-import { geocodeAddress, type PlaceSuggestion } from './rest.js';
+import type { PlaceSuggestion } from './rest.js';
 import type { LatLng } from '$lib/geo.js';
 
 // ---------------------------------------------------------------------------
@@ -42,10 +42,17 @@ export async function suggestPlacesWeb(input: string, language: string, session?
     const response = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
       input,
       language,
+      // Include both the Republic of Ireland ('ie') and Northern Ireland ('gb').
+      // locationBias toward the centre of the island keeps all-Ireland results
+      // ranked above the rest of Great Britain.
+      includedRegionCodes: ['ie', 'gb'],
+      locationBias: { center: { lat: 53.1424, lng: -7.6921 }, radius: 50000 },
       ...(session ? { sessionToken: session } : {})
     });
     return (response.suggestions ?? []).map((s) => ({
-      description: s.placePrediction?.mainText?.text ?? s.placePrediction?.text?.text ?? '',
+      // text is the full address string (recommended for single UI elements).
+      // mainText is the short name only (e.g. "Dublin" without the county/country).
+      description: s.placePrediction?.text?.text ?? s.placePrediction?.mainText?.text ?? '',
       placeId: s.placePrediction?.placeId ?? ''
     }));
   } catch {
@@ -64,8 +71,13 @@ export async function newSessionTokenWeb(): Promise<google.maps.places.Autocompl
 
 /**
  * Resolve a place suggestion to coordinates using the Places JS SDK (web only).
- * Falls back to the REST geocoder for the address string if the SDK fails.
+ * Falls back to the JS SDK Geocoder for the address string if fetchFields fails.
  * Fail-soft: returns null on any error.
+ *
+ * Note: the REST geocodeAddress fallback that was here previously used
+ * CapacitorHttp, which on web is patched to fetch(). The Geocoding API does not
+ * send CORS headers for localhost or arbitrary origins, so that fallback always
+ * failed silently on web. The Geocoding JS SDK is the correct path here.
  */
 export async function placeLocationWeb(placeId: string, fallbackAddress: string): Promise<LatLng | null> {
   try {
@@ -77,7 +89,17 @@ export async function placeLocationWeb(placeId: string, fallbackAddress: string)
     if (!loc) throw new Error('no location');
     return { lat: loc.lat(), lng: loc.lng() };
   } catch {
-    // Fall back to REST geocoding via the address string
-    return geocodeAddress(fallbackAddress);
+    // Fall back to the JS SDK Geocoder with the address string.
+    try {
+      await loadMapsApi();
+      const { Geocoder } = (await google.maps.importLibrary('geocoding')) as google.maps.GeocodingLibrary;
+      const geocoder = new Geocoder();
+      const result = await geocoder.geocode({ address: fallbackAddress });
+      const loc = result.results?.[0]?.geometry?.location;
+      if (!loc) return null;
+      return { lat: loc.lat(), lng: loc.lng() };
+    } catch {
+      return null;
+    }
   }
 }

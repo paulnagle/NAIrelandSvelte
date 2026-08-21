@@ -29,6 +29,21 @@ export interface CleanTimeTag {
   image: string;
 }
 
+export interface Milestone {
+  tag: 'DAYCLEAN' | 'DAYSCLEAN' | 'MONTHSCLEAN' | 'YEARCLEAN' | 'YEARSCLEAN' | 'none';
+  amount: number;
+  image: string;
+  date: Date;
+}
+
+export interface MilestoneProgress {
+  current: Milestone | null;
+  next: Milestone & {
+    daysRemaining: number;
+    percent: number;
+  };
+}
+
 // ---------------------------------------------------------------------------
 // getCleanTime
 // ---------------------------------------------------------------------------
@@ -135,4 +150,77 @@ export function getCleanTimeTag(cleanDate: Date, today: Date): CleanTimeTag {
   }
 
   return { tag: 'none', amount: 0, image: '' };
+}
+
+// ---------------------------------------------------------------------------
+// getMilestoneProgress
+// ---------------------------------------------------------------------------
+
+/**
+ * Calculates the current highest achieved milestone and the next upcoming milestone.
+ * Also provides progress indicators (days remaining, percentage elapsed).
+ */
+export function getMilestoneProgress(cleanDate: Date, today: Date): MilestoneProgress {
+  const sy = cleanDate.getFullYear();
+  const sm = cleanDate.getMonth();
+  const sd = cleanDate.getDate();
+
+  function addDays(d: Date, days: number): Date {
+    return new Date(d.getTime() + days * 24 * 60 * 60 * 1000);
+  }
+  function makeUtc(y: number, m: number, d: number): Date {
+    return new Date(Date.UTC(y, m, d));
+  }
+
+  const list: Milestone[] = [
+    { tag: 'DAYCLEAN', amount: 1, image: '/keytags/1-day.png', date: addDays(cleanDate, 1) },
+    { tag: 'DAYSCLEAN', amount: 30, image: '/keytags/30-days.png', date: addDays(cleanDate, 30) },
+    { tag: 'DAYSCLEAN', amount: 60, image: '/keytags/60-days.png', date: addDays(cleanDate, 60) },
+    { tag: 'DAYSCLEAN', amount: 90, image: '/keytags/90-days.png', date: addDays(cleanDate, 90) },
+    { tag: 'MONTHSCLEAN', amount: 6, image: '/keytags/6-months.png', date: makeUtc(sy, sm + 6, sd) },
+    { tag: 'MONTHSCLEAN', amount: 9, image: '/keytags/9-months.png', date: makeUtc(sy, sm + 9, sd) },
+    { tag: 'YEARCLEAN', amount: 1, image: '/keytags/1-year.png', date: makeUtc(sy + 1, sm, sd) },
+    { tag: 'MONTHSCLEAN', amount: 18, image: '/keytags/18-months.png', date: makeUtc(sy, sm + 18, sd) }
+  ];
+
+  const todayYears = Math.max(0, today.getFullYear() - sy);
+  for (let y = 2; y <= todayYears + 2; y++) {
+    list.push({
+      tag: 'YEARSCLEAN',
+      amount: y,
+      image: '/keytags/x-years.png',
+      date: makeUtc(sy + y, sm, sd)
+    });
+  }
+
+  // Sort list chronologically
+  list.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  let currentIdx = -1;
+  for (let i = 0; i < list.length; i++) {
+    if (today.getTime() >= list[i].date.getTime()) {
+      currentIdx = i;
+    } else {
+      break;
+    }
+  }
+
+  const current = currentIdx >= 0 ? list[currentIdx] : null;
+  const next = list[currentIdx + 1];
+
+  const startDate = current ? current.date : cleanDate;
+  const intervalTotal = next.date.getTime() - startDate.getTime();
+  const intervalElapsed = today.getTime() - startDate.getTime();
+
+  const daysRemaining = Math.max(0, Math.round((next.date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+  const percent = intervalTotal > 0 ? Math.min(100, Math.max(0, Math.floor((intervalElapsed / intervalTotal) * 100))) : 100;
+
+  return {
+    current,
+    next: {
+      ...next,
+      daysRemaining,
+      percent
+    }
+  };
 }
