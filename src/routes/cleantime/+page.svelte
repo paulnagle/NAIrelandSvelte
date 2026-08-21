@@ -4,8 +4,6 @@
   import { settings } from '$lib/stores/settings.svelte.js';
   import { getCleanTime, getCleanTimeTag, getMilestoneProgress } from '$lib/meetings/cleantime.js';
   import Calendar from '@lucide/svelte/icons/calendar';
-  import Award from '@lucide/svelte/icons/award';
-  import Sparkles from '@lucide/svelte/icons/sparkles';
   import X from '@lucide/svelte/icons/x';
 
   $effect(() => {
@@ -92,8 +90,11 @@
       class="relative flex min-h-[140px] flex-col justify-between overflow-hidden rounded-2xl border border-indigo-950 bg-gradient-to-br from-blue-700 via-indigo-900 to-slate-950 p-6 text-white shadow-md"
     >
       <!-- Background SVG accent pattern for visual appeal -->
-      <div class="pointer-events-none absolute -right-10 -bottom-10 text-white/5 select-none">
-        <Sparkles class="h-44 w-44" />
+      <div class="pointer-events-none absolute -right-10 -bottom-10 select-none">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="176" height="176" fill="none" aria-hidden="true">
+          <circle cx="50" cy="50" r="45" stroke="currentColor" stroke-width="4" class="text-white/5" />
+          <polygon points="50,5 95,50 50,95 5,50" stroke="currentColor" stroke-width="4" class="text-white/5" />
+        </svg>
       </div>
 
       <div class="relative z-10">
@@ -142,11 +143,17 @@
   <!-- Keytag Milestone Today Celebration -->
   {#if cleanTag !== null && cleanTag.tag !== 'none'}
     <div class="animate-bounce-subtle relative flex flex-col items-center gap-4 overflow-hidden rounded-2xl border-2 border-amber-400 bg-amber-50/70 p-6 text-center shadow-xs dark:bg-amber-950/20">
-      <div class="pointer-events-none absolute -top-4 -right-4 text-amber-400/20">
-        <Sparkles class="h-20 w-20" />
+      <div class="pointer-events-none absolute -top-4 -right-4">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="80" height="80" fill="none" aria-hidden="true">
+          <circle cx="50" cy="50" r="45" stroke="currentColor" stroke-width="4" class="text-amber-400/20" />
+          <polygon points="50,5 95,50 50,95 5,50" stroke="currentColor" stroke-width="4" class="text-amber-400/20" />
+        </svg>
       </div>
       <div class="rounded-full bg-amber-100 p-2.5 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400">
-        <Sparkles class="h-6 w-6" />
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="24" height="24" fill="none" aria-hidden="true">
+          <circle cx="50" cy="50" r="45" stroke="currentColor" stroke-width="6" />
+          <polygon points="50,5 95,50 50,95 5,50" stroke="currentColor" stroke-width="6" />
+        </svg>
       </div>
       <div>
         <h3 class="text-xl font-black text-amber-900 dark:text-amber-300">
@@ -163,71 +170,29 @@
     </div>
   {/if}
 
-  <!-- Progress Towards Next Milestone -->
-  {#if milestoneProgress !== null}
-    <div class="flex flex-col gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)] p-5 shadow-xs">
-      <div class="flex items-center gap-3">
-        <div class="shrink-0 rounded-xl bg-blue-50 p-2.5 text-[var(--color-bmlt)] dark:bg-blue-950/40 dark:text-blue-400">
-          <Award class="h-5 w-5" />
-        </div>
-        <div class="min-w-0">
-          <h3 class="text-[10px] font-bold tracking-wider text-[var(--text-muted)] uppercase">Next Milestone</h3>
-          <p class="truncate text-sm font-extrabold text-[var(--text)]">
-            {milestoneProgress.next.amount}{t(milestoneProgress.next.tag)}
-          </p>
-        </div>
+  <!-- Current Milestone achieved -->
+  {#if milestoneProgress?.current}
+    <div class="flex items-center gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)] p-4 shadow-xs">
+      <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/30">
+        <img src={milestoneProgress.current.image} alt="Current Milestone" class="h-9 w-9 object-contain drop-shadow-xs filter" />
       </div>
-
-      <div class="flex items-center gap-5">
-        {#if milestoneProgress.next.image}
-          <img src={milestoneProgress.next.image} alt="{milestoneProgress.next.amount}{t(milestoneProgress.next.tag)}" class="h-20 w-16 shrink-0 object-contain drop-shadow-xs filter" />
-        {/if}
-        <div class="min-w-0 flex-1">
-          <div class="mb-1 flex items-baseline justify-between">
-            <span class="text-2xl font-black tracking-tight text-[var(--text)]">
-              {milestoneProgress.next.daysRemaining.toLocaleString()}
-            </span>
-            <span class="text-[11px] font-bold tracking-wider text-[var(--text-muted)] uppercase">
-              {milestoneProgress.next.daysRemaining === 1 ? 'day' : 'days'} left
-            </span>
-          </div>
-
-          <!-- Progress bar -->
-          <div class="h-2.5 w-full overflow-hidden rounded-full border border-[var(--border)] bg-[var(--surface-sunken)]">
-            <div
-              class="h-full rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 transition-all duration-500 dark:from-blue-500 dark:to-indigo-500"
-              style="width: {milestoneProgress.next.percent}%"
-            ></div>
-          </div>
-          <div class="mt-1.5 flex justify-between text-[10px] font-bold tracking-wider text-[var(--text-muted)] uppercase">
-            <span>{milestoneProgress.next.percent}% completed</span>
-            <span>Target: {new Date(milestoneProgress.next.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-          </div>
-        </div>
+      <div class="min-w-0 flex-1">
+        <p class="text-[10px] font-bold tracking-wider text-[var(--text-muted)] uppercase">Current Achievement</p>
+        <p class="truncate text-sm font-extrabold text-[var(--text)]">
+          {milestoneProgress.current.amount}{t(milestoneProgress.current.tag)} Keytag
+        </p>
       </div>
     </div>
-
-    <!-- Current Milestone achieved -->
-    {#if milestoneProgress.current}
-      <div class="flex items-center gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)] p-4 shadow-xs">
-        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/30">
-          <img src={milestoneProgress.current.image} alt="Current Milestone" class="h-9 w-9 object-contain drop-shadow-xs filter" />
-        </div>
-        <div class="min-w-0 flex-1">
-          <p class="text-[10px] font-bold tracking-wider text-[var(--text-muted)] uppercase">Current Achievement</p>
-          <p class="truncate text-sm font-extrabold text-[var(--text)]">
-            {milestoneProgress.current.amount}{t(milestoneProgress.current.tag)} Keytag
-          </p>
-        </div>
-      </div>
-    {/if}
   {/if}
 
   <!-- Welcome screen when no date is entered -->
   {#if cleanTime === null}
     <div class="mt-1 flex flex-col items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface-raised)] p-8 text-center shadow-xs">
       <div class="mb-4 flex h-16 w-16 animate-pulse items-center justify-center rounded-full bg-blue-50 text-[var(--color-bmlt)] dark:bg-blue-950/40 dark:text-blue-400">
-        <Sparkles class="h-8 w-8" />
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="32" height="32" fill="none" aria-hidden="true">
+          <circle cx="50" cy="50" r="45" stroke="currentColor" stroke-width="6" />
+          <polygon points="50,5 95,50 50,95 5,50" stroke="currentColor" stroke-width="6" />
+        </svg>
       </div>
       <h2 class="mb-2 text-lg font-black tracking-tight text-[var(--text)]">Track Your Recovery Journey</h2>
       <p class="max-w-xs text-sm leading-relaxed text-[var(--text-muted)]">Enter your clean date above to calculate your exact years, months, and days clean, and view your milestone keytags.</p>
