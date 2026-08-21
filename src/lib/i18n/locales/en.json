@@ -141,5 +141,6 @@
   "MAP_SEARCH": "Meetings Map",
   "SEARCH_AREA": "Search this area",
   "SEARCH_PLACEHOLDER": "Search…",
-  "ZOOM_IN_TO_SEARCH": "Zoom in to search this area"
+  "ZOOM_IN_TO_SEARCH": "Zoom in to search this area",
+  "RETRY": "Retry"
 }

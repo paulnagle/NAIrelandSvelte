@@ -119,7 +119,7 @@
       // the "Search this area" button.
       mapReady = true;
     } catch (e) {
-      error = String((e as Error).message ?? e);
+      error = e instanceof Error ? e.message : String(e);
     }
   }
 
@@ -235,7 +235,7 @@
       await drawMarkers(meetings);
     } catch (e) {
       if (sequence === searchSequence) {
-        error = String((e as Error).message ?? e);
+        error = e instanceof Error ? e.message : String(e);
       }
     } finally {
       release();
@@ -300,7 +300,9 @@
         detailFormats = await getFormats(allFormatIds, settings.language);
       }
     } catch (e) {
-      error = String((e as Error).message ?? e);
+      // Close the sheet — it would otherwise remain open showing nothing.
+      detailOpen = false;
+      error = e instanceof Error ? e.message : String(e);
     } finally {
       detailLoading = false;
     }
@@ -330,6 +332,13 @@
       const fix = await getCurrentPosition(6000);
       programmaticMove = true;
       await moveCamera({ coordinate: fix });
+      // Search the new viewport immediately — the camera-idle event is suppressed
+      // for programmatic moves, so we must trigger the search explicitly here.
+      const bounds = await map!.getMapBounds();
+      await runSearch({
+        zoom: MIN_SEARCH_ZOOM,
+        bounds: { center: bounds.center, southwest: bounds.southwest }
+      });
     } catch {
       // Silently ignore — the map is still visible at its last position.
     }
@@ -358,7 +367,15 @@
 
     const location = await placeLocation(suggestion.placeId, suggestion.description);
     if (location) {
+      // Suppress the idle event — we search explicitly below rather than showing
+      // the "Search this area" button after the user already picked a place.
+      programmaticMove = true;
       await moveCamera({ coordinate: location, zoom: 14 });
+      const bounds = await map!.getMapBounds();
+      await runSearch({
+        zoom: 14,
+        bounds: { center: bounds.center, southwest: bounds.southwest }
+      });
     }
   }
 
@@ -412,7 +429,7 @@
           }}
           class="mt-1 text-xs text-[var(--text-muted)] underline"
         >
-          Retry
+          {t('RETRY')}
         </button>
       </div>
     {/if}
@@ -463,22 +480,12 @@
       <LocateFixed class="h-5 w-5 text-[#000090] dark:text-blue-400" />
     </button>
 
-    <!-- Loading indicator -->
-    {#if loading.active}
+    <!-- Loading indicator — shown for both map searches and detail-sheet fetches -->
+    {#if loading.active || detailLoading}
       <div class="absolute bottom-24 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[var(--surface-raised)] px-4 py-2 shadow-md" role="status" aria-live="polite">
         <span class="flex items-center gap-2 text-xs text-[var(--text-muted)]">
           <span class="h-3 w-3 animate-spin rounded-full border-2 border-[#000090] border-t-transparent dark:border-blue-400"></span>
           {loading.message || t('FINDING_MTGS')}
-        </span>
-      </div>
-    {/if}
-
-    <!-- Detail sheet loading indicator -->
-    {#if detailLoading}
-      <div class="absolute bottom-24 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[var(--surface-raised)] px-4 py-2 shadow-md" role="status" aria-live="polite">
-        <span class="flex items-center gap-2 text-xs text-[var(--text-muted)]">
-          <span class="h-3 w-3 animate-spin rounded-full border-2 border-[#000090] border-t-transparent dark:border-blue-400"></span>
-          {t('FINDING_MTGS')}
         </span>
       </div>
     {/if}
