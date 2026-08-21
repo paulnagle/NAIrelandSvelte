@@ -6,7 +6,7 @@
   import { GoogleMap } from '@capacitor/google-maps';
   import type { CameraIdleCallbackData, MarkerClickCallbackData } from '@capacitor/google-maps/dist/typings/definitions';
   import { Geolocation } from '@capacitor/geolocation';
-  import { LocateFixed, MapPin, RotateCw, Search, X } from '@lucide/svelte';
+  import { LocateFixed, MapPin, Search, X } from '@lucide/svelte';
   import { onMount, onDestroy } from 'svelte';
   import { t } from '$lib/i18n/index.js';
   import { settings } from '$lib/stores/settings.svelte.js';
@@ -61,15 +61,7 @@
    */
   let programmaticMove = false;
 
-  /**
-   * `true` after the first search has run. Subsequent idles show the
-   * "Search this area" button instead of auto-searching.
-   */
-  let searchAfterMove = false;
-
   let lastCamera: { zoom: number; bounds: { center: LatLng; southwest: LatLng } } | null = null;
-  let canSearchArea = $state(false);
-  let zoomTooLow = $state(false);
 
   // IDs of markers currently placed on the map, and a map from markerId → meetingIds.
   // SvelteMap so the template re-renders if ever read reactively; plain Map would
@@ -125,9 +117,6 @@
         zoom: MIN_SEARCH_ZOOM,
         bounds: { center: bounds.center, southwest: bounds.southwest }
       });
-      // Mark the initial search as done so that the first user-driven
-      // camera-idle does not auto-search again.
-      searchAfterMove = true;
     } catch (e) {
       error = String((e as Error).message ?? e);
     }
@@ -139,7 +128,7 @@
       id: 'map',
       element: mapElement!,
       apiKey: key,
-      config: { center: centre, zoom: MIN_SEARCH_ZOOM },
+      config: { center: centre, zoom: MIN_SEARCH_ZOOM, minZoom: MIN_SEARCH_ZOOM },
       forceCreate: true
     });
 
@@ -165,9 +154,10 @@
 
   async function moveCamera(config: { coordinate?: LatLng; zoom?: number }) {
     try {
+      const zoom = config.zoom !== undefined ? Math.max(config.zoom, MIN_SEARCH_ZOOM) : undefined;
       await map?.setCamera({
         coordinate: config.coordinate,
-        zoom: config.zoom
+        zoom
       });
     } catch {
       // A move can fail if the element is removed before it completes.
@@ -208,11 +198,7 @@
     const normEvent = { zoom: event.zoom, bounds: { center: centre, southwest: sw } };
 
     // If nothing changed from last idle, it's noise — skip.
-    // Also check zoom — a pure pinch gesture keeps the centre fixed but changes
-    // the zoom, and that must not be swallowed here (the zoom threshold below
-    // would never be reached, leaving the button visible at illegal zoom levels).
     if (
-      searchAfterMove &&
       lastCamera &&
       normEvent.bounds.center.lat === lastCamera.bounds.center.lat &&
       normEvent.bounds.center.lng === lastCamera.bounds.center.lng &&
@@ -222,30 +208,7 @@
     }
 
     lastCamera = normEvent;
-
-    // The iOS Google Maps SDK reports fractional zoom values (e.g. 7.9 for what
-    // visually looks like zoom 8). Floor before comparing so the threshold is
-    // evaluated against the integer zoom level the user perceives.
-    if (Math.floor(normEvent.zoom) < MIN_SEARCH_ZOOM) {
-      // Zoomed too far out to search — hide the button and show a hint.
-      canSearchArea = false;
-      zoomTooLow = true;
-      searchAfterMove = false;
-      return;
-    }
-
-    zoomTooLow = false;
-
-    if (!searchAfterMove) {
-      // First idle after mount (or after a programmatic move with intent to
-      // search): run the search immediately so the map is never blank on open.
-      await runSearch(normEvent);
-      searchAfterMove = true;
-    } else {
-      // Subsequent user pans/zooms: show the "Search this area" button instead
-      // of re-searching automatically on every move.
-      canSearchArea = true;
-    }
+    await runSearch(normEvent);
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -263,7 +226,6 @@
       // A newer search arrived while this one was in flight — discard.
       if (sequence !== searchSequence) return;
 
-      canSearchArea = false;
       await drawMarkers(meetings);
     } catch (e) {
       if (sequence === searchSequence) {
@@ -272,12 +234,6 @@
     } finally {
       release();
     }
-  }
-
-  function searchThisArea() {
-    if (!lastCamera || lastCamera.zoom < MIN_SEARCH_ZOOM) return;
-    canSearchArea = false;
-    runSearch(lastCamera);
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -396,10 +352,6 @@
 
     const location = await placeLocation(suggestion.placeId, suggestion.description);
     if (location) {
-      // Reset searchAfterMove so the idle that follows the camera move runs
-      // one immediate search at the new position (same path as startup), then
-      // sets searchAfterMove = true so subsequent user pans show the button.
-      searchAfterMove = false;
       await moveCamera({ coordinate: location, zoom: 14 });
     }
   }
@@ -495,23 +447,6 @@
     >
       <LocateFixed class="h-5 w-5 text-[#000090] dark:text-blue-400" />
     </button>
-
-    <!-- Search this area button — only shown when zoom is sufficient and the
-       viewport has moved meaningfully since the last search -->
-    {#if canSearchArea}
-      <div class="absolute bottom-24 left-1/2 z-10 -translate-x-1/2">
-        <button type="button" onclick={searchThisArea} class="flex items-center gap-2 rounded-full bg-[var(--surface-raised)] px-4 py-2 text-sm font-medium shadow-md hover:bg-[var(--surface-sunken)]">
-          <RotateCw class="h-4 w-4 text-[#000090] dark:text-blue-400" aria-hidden="true" />
-          {t('SEARCH_AREA')}
-        </button>
-      </div>
-    {:else if zoomTooLow && !loading.active}
-      <div class="absolute bottom-24 left-1/2 z-10 -translate-x-1/2">
-        <p class="rounded-full bg-[var(--surface-raised)] px-4 py-2 text-sm text-[var(--text-muted)] shadow-md">
-          {t('ZOOM_IN_TO_SEARCH')}
-        </p>
-      </div>
-    {/if}
 
     <!-- Loading indicator -->
     {#if loading.active}
