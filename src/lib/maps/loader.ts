@@ -42,11 +42,6 @@ export async function suggestPlacesWeb(input: string, language: string, session?
     const response = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
       input,
       language,
-      // Include both the Republic of Ireland ('ie') and Northern Ireland ('gb').
-      // locationBias toward the centre of the island keeps all-Ireland results
-      // ranked above the rest of Great Britain.
-      includedRegionCodes: ['ie', 'gb'],
-      locationBias: { center: { lat: 53.1424, lng: -7.6921 }, radius: 50000 },
       ...(session ? { sessionToken: session } : {})
     });
     return (response.suggestions ?? []).map((s) => ({

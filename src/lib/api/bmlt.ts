@@ -72,7 +72,7 @@ export async function getRadiusMeetings(lat: number, lng: number, radiusKm: numb
  * meetings carry arbitrary coordinates and must not appear as map pins.
  */
 export async function meetingsWithinRadius(lat: number, lng: number, radiusKm: number): Promise<Meeting[]> {
-  const url = IRELAND_BMLT + `?switcher=GetSearchResults&geo_width_km=${radiusKm}&long_val=${lng}&lat_val=${lat}` + `&sort_keys=longitude,latitude&venue_types[]=1&venue_types[]=3&${CALLING_APP}`;
+  const url = AGGREGATOR_BMLT + `?switcher=GetSearchResults&geo_width_km=${radiusKm}&long_val=${lng}&lat_val=${lat}` + `&sort_keys=longitude,latitude&venue_types[]=1&venue_types[]=3&${CALLING_APP}`;
   return httpGet<Meeting[]>(url);
 }
 
@@ -89,7 +89,7 @@ export async function getMeetingsByIds(ids: string): Promise<Meeting[]> {
     .filter(Boolean)
     .map((id) => `meeting_ids[]=${encodeURIComponent(id.trim())}`)
     .join('&');
-  const url = IRELAND_BMLT + `?switcher=GetSearchResults&${repeated}&${CALLING_APP}`;
+  const url = AGGREGATOR_BMLT + `?switcher=GetSearchResults&${repeated}&${CALLING_APP}`;
   return httpGet<Meeting[]>(url);
 }
 

@@ -49,16 +49,7 @@ export async function autocompletePlaces(input: string, lang: string): Promise<P
       headers,
       data: {
         input,
-        languageCode: lang,
-        // Include both the Republic of Ireland ('ie') and Northern Ireland ('gb').
-        // locationBias keeps all-Ireland results ranked above the rest of GB.
-        includedRegionCodes: ['ie', 'gb'],
-        locationBias: {
-          circle: {
-            center: { latitude: 53.1424, longitude: -7.6921 },
-            radius: 500000.0
-          }
-        }
+        languageCode: lang
       }
     });
 
