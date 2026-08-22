@@ -1,4 +1,4 @@
-name: Android build
+name: Android build and Play upload
 
 # Manual or tag-triggered, matching the iOS workflow. Ubuntu runners are cheap
 # (no 10x macOS multiplier), so this could run on every push — it does not,
@@ -6,6 +6,11 @@ name: Android build
 # already proves the web bundle compiles on every push.
 on:
   workflow_dispatch:
+    inputs:
+      upload_to_play:
+        description: 'Upload the signed AAB to Google Play open testing'
+        type: boolean
+        default: false
   push:
     tags:
       - 'v*'
@@ -43,21 +48,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # A tag push sets the shipped version; a manual run is a test build and is
-      # deliberately stamped 0.0.0-dev so it cannot be mistaken for a release.
-      # The APK/AAB filenames carry it too, since both artifacts otherwise look
-      # identical in the downloads list.
+      # A tag push sets the shipped version and a Play-safe versionCode derived
+      # from semver. Manual runs stay clearly non-release and use a high fallback
+      # code above the current production floor.
       - name: Derive version
         id: version
         run: |
           set -euo pipefail
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
             NAME="${GITHUB_REF_NAME#v}"
+            IFS=. read -r MAJOR MINOR PATCH <<EOF
+          $NAME
+          EOF
+            CODE=$(printf '%d%02d%02d001' "$MAJOR" "$MINOR" "$PATCH")
           else
             NAME="0.0.0-dev"
+            CODE="801000001"
           fi
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
-          echo "Version $NAME (code ${{ github.run_number }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "Version $NAME (code $CODE)" >> "$GITHUB_STEP_SUMMARY"
 
       # The Maps keys are inlined into the web bundle at build time. All three
       # are passed even when empty; an unset key degrades to an empty string.
@@ -101,7 +111,7 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           GOOGLE_MAPS_KEY_ANDROID: ${{ secrets.GOOGLE_MAPS_KEY_ANDROID }}
-          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_CODE: ${{ steps.version.outputs.code }}
           ANDROID_VERSION_NAME: ${{ steps.version.outputs.name }}
         working-directory: android
         run: ./gradlew assembleRelease bundleRelease --no-daemon
@@ -126,6 +136,16 @@ jobs:
             android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload to Google Play open testing
+        if: github.event_name == 'push' || inputs.upload_to_play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ie.nasouth.android.naireland
+          releaseFiles: android/app/build/outputs/bundle/release/*.aab
+          track: beta
+          status: completed
 
       - name: Clean up keystore
         if: always()

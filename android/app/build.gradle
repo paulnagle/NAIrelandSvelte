@@ -15,8 +15,9 @@ android {
         applicationId "ie.nasouth.android.naireland"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        def versionCodeEnv = System.getenv("ANDROID_VERSION_CODE")
+        versionCode versionCodeEnv ? versionCodeEnv.toInteger() : 801000001
+        versionName System.getenv("ANDROID_VERSION_NAME") ?: "8.1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // Inject the Maps key into the manifest so the Maps SDK for Android can read it.
         // The Maps SDK reads its key from the manifest meta-data entry, not from the
