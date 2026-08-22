@@ -261,7 +261,13 @@
 
     const markerDefs = markers.map((m) => ({
       coordinate: m.coordinate,
-      iconUrl: iconFor(m)
+      iconUrl: iconFor(m),
+      // iconSize must be supplied so the native Android renderer applies
+      // devicePixelRatio when scaling the bitmap. Without it the raw PNG
+      // pixels are used directly, producing tiny markers on hi-DPI screens.
+      // Values are logical dp units; the plugin multiplies by devicePixelRatio
+      // before calling Bitmap.createScaledBitmap on the native side.
+      iconSize: { width: 60, height: 72 }
     }));
 
     // addMarkers returns the placed marker IDs in the same order as markerDefs
@@ -391,15 +397,16 @@
   onMount(() => {
     // Android: the native map renders beneath the webview, so every layer
     // above it must be transparent or the map is invisible.
+    // The CSS targets html.map-underlay, so the class must be on <html>.
     if (isAndroid()) {
-      document.body.classList.add('map-underlay');
+      document.documentElement.classList.add('map-underlay');
     }
     start();
   });
 
   onDestroy(async () => {
     if (isAndroid()) {
-      document.body.classList.remove('map-underlay');
+      document.documentElement.classList.remove('map-underlay');
     }
     await teardown();
   });
