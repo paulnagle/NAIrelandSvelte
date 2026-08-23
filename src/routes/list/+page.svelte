@@ -183,7 +183,7 @@
   {/if}
 {:else}
   <!-- ── Meeting list ─────────────────────────────────────────────────────── -->
-  <div class="sticky top-0 z-10 flex items-center border-b border-[var(--border)] bg-[var(--surface)] px-2 py-2">
+  <div class="sticky top-0 z-20 flex items-center border-b border-[var(--border)] bg-[var(--surface)] px-2 py-2">
     <button type="button" onclick={goBack} class="focusable flex items-center gap-1 rounded px-2 py-1 text-sm text-[#000090] dark:text-blue-400" aria-label="Back to county list">
       <!-- Chevron left -->
       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

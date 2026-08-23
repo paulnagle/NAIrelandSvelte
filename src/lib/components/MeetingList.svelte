@@ -34,6 +34,19 @@
   // Use SvelteSet so the template re-renders when a day is toggled.
   const expanded = new SvelteSet<number>();
 
+  // Plain Map — only written to, never read reactively; holds refs to each day's wrapper div.
+  // The wrapper div is never sticky so its position is always its true natural position,
+  // unlike the sticky button whose offsetTop reflects its stuck location.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
+  const wrapperRefs = new Map<number, HTMLDivElement>();
+
+  function registerWrapper(el: HTMLDivElement, weekday: number) {
+    wrapperRefs.set(weekday, el);
+    return {
+      destroy() { wrapperRefs.delete(weekday); }
+    };
+  }
+
   // When expandAll becomes true (or on first render with expandAll=true),
   // open all days present in the current grouped list.
   $effect(() => {
@@ -48,6 +61,27 @@
     } else {
       expanded.clear();
       expanded.add(weekday);
+      const wrapper = wrapperRefs.get(weekday);
+      if (wrapper) {
+        // Two rAFs: first lets Svelte flush the DOM (old day collapses, new day
+        // opens), second lets the browser reflow before we measure.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          // Find the scrolling <main class="app-main">.
+          let scroller: HTMLElement | null = wrapper.parentElement;
+          while (scroller && !scroller.classList.contains('app-main')) {
+            scroller = scroller.parentElement;
+          }
+          if (!scroller) return;
+          // getBoundingClientRect gives positions relative to the viewport.
+          // The difference between the wrapper's top and the scroller's top,
+          // added to the scroller's current scrollTop, gives the absolute
+          // scroll position we want — then subtract the 36px back-nav bar.
+          const scrollerRect = scroller.getBoundingClientRect();
+          const wrapperRect = wrapper.getBoundingClientRect();
+          const target = scroller.scrollTop + (wrapperRect.top - scrollerRect.top) - 36;
+          scroller.scrollTo({ top: target, behavior: 'smooth' });
+        }));
+      }
     }
   }
 
@@ -72,7 +106,7 @@
 
         <!-- Day accordion: header and body are siblings so sticky isn't clipped
              by overflow-hidden. The rounded corners are split between them. -->
-        <div>
+        <div use:registerWrapper={group.weekday}>
           <!-- Day header button — sticky below the back-nav bar (top-9 = 36px) -->
           <button
             type="button"
