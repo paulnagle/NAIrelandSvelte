@@ -19,6 +19,19 @@ export interface PlaceSuggestion {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalises a CapacitorHttp response body to a parsed object.
+ * Some environments deliver the body as an unparsed JSON string.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseBody(data: unknown): any {
+  return typeof data === 'string' ? JSON.parse(data) : data;
+}
+
+// ---------------------------------------------------------------------------
 // Autocomplete
 // ---------------------------------------------------------------------------
 
@@ -55,8 +68,7 @@ export async function autocompletePlaces(input: string, lang: string): Promise<P
 
     if (response.status !== 200) return [];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const body: any = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+    const body = parseBody(response.data);
 
     if (!body?.suggestions) return [];
 
@@ -90,8 +102,7 @@ export async function geocodePlace(placeId: string): Promise<{ lat: number; lng:
 
     if (response.status !== 200) return null;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const body: any = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+    const body = parseBody(response.data);
 
     const loc = body?.results?.[0]?.geometry?.location;
     if (!loc) return null;
@@ -118,8 +129,7 @@ export async function geocodeAddress(address: string): Promise<{ lat: number; ln
 
     if (response.status !== 200) return null;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const body: any = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+    const body = parseBody(response.data);
 
     const loc = body?.results?.[0]?.geometry?.location;
     if (!loc) return null;

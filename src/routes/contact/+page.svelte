@@ -49,7 +49,7 @@
     },
     {
       key: 'CONTACT.VISITWEB',
-      url: 'https://bmlt.app'
+      url: 'https://na-ireland.org/'
     },
     {
       key: 'CONTACT.MOREBMLT',
@@ -70,7 +70,7 @@
   <div class="flex flex-col items-center gap-4 px-6 py-20 text-center">
     <p class="text-[var(--color-danger)]">{t('CONTACT')} — could not load. Please check your connection.</p>
     <button onclick={load} class="focusable rounded-md bg-[#000090] px-6 py-2 text-white">
-      {t('TRYAGAIN') || 'Try again'}
+      {t('RETRY')}
     </button>
   </div>
 {:else}

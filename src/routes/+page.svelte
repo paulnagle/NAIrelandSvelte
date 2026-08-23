@@ -8,9 +8,7 @@
 
   // The home screen uses the default app title already shown by the layout,
   // so clear any page-specific title from a previous route.
-  $effect(() => {
-    pageTitle.value = '';
-  });
+  pageTitle.value = '';
 
   const quickLinks = [
     { href: '/list', icon: List, labelKey: 'MEETINGLIST' },

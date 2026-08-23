@@ -45,9 +45,10 @@
   // Show address block for physical presence meetings.
   const showAddress = $derived(kind === 'inperson' || kind === 'hybrid' || kind === 'tempclosed' || kind === 'tempreplace');
 
-  // Show directions button: physical meetings that aren't purely virtual,
-  // but not temp-replaced (temp-replace implies virtual-only now).
-  const showDirections = $derived((kind === 'inperson' || kind === 'hybrid' || kind === 'tempclosed') && !meeting.virtual_meeting_link ? true : kind === 'hybrid');
+  // Show directions button for any meeting with a physical location.
+  // Hybrid meetings always have a venue; temp-replaced meetings do not
+  // (they've moved fully online), so tempreplace is excluded.
+  const showDirections = $derived(kind === 'inperson' || kind === 'hybrid' || kind === 'tempclosed');
 
   // Show the "Temporarily Closed" chip.
   const showTempChip = $derived(kind === 'tempclosed' || kind === 'tempreplace');

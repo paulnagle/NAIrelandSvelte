@@ -70,10 +70,16 @@
         {@const isOpen = expanded.has(group.weekday)}
         {@const colorVar = `var(--color-${DAY_COLORS[group.weekday] ?? 'sunday'})`}
 
-        <!-- Day accordion card -->
-        <div class="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-sm">
-          <!-- Day header button -->
-          <button type="button" onclick={() => toggleDay(group.weekday)} class="focusable flex w-full items-center gap-3 px-4 py-3 text-left" aria-expanded={isOpen}>
+        <!-- Day accordion: header and body are siblings so sticky isn't clipped
+             by overflow-hidden. The rounded corners are split between them. -->
+        <div>
+          <!-- Day header button — sticky below the back-nav bar (top-9 = 36px) -->
+          <button
+            type="button"
+            onclick={() => toggleDay(group.weekday)}
+            class="focusable sticky top-9 z-10 flex w-full items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-left shadow-sm {isOpen ? 'rounded-b-none' : ''}"
+            aria-expanded={isOpen}
+          >
             <!-- Weekday colour swatch -->
             <span class="h-8 w-1.5 shrink-0 rounded-full" style="background-color: {colorVar};" aria-hidden="true"></span>
 
@@ -107,8 +113,8 @@
 
           <!-- Meetings for this day -->
           {#if isOpen}
-            <div class="flex flex-col gap-3 border-t border-[var(--border)] bg-[var(--surface-sunken)] p-3">
-              {#each group.meetings as meeting (meeting.id_bigint)}
+            <div class="flex flex-col gap-3 rounded-b-xl border border-t-0 border-[var(--border)] bg-[var(--surface-sunken)] p-3">
+              {#each group.meetings as meeting, i (i)}
                 <MeetingCard {meeting} {formatNames} />
               {/each}
             </div>

@@ -68,7 +68,7 @@
   <title>{appTitle}</title>
 </svelte:head>
 
-<div class="app-shell flex min-h-dvh flex-col">
+<div class="app-shell flex h-dvh flex-col">
   <div class="sticky top-0 z-40">
     <AppBar title={appTitle} onMenuClick={() => (drawerOpen = true)} />
   </div>

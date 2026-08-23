@@ -19,7 +19,7 @@
   import { meetingsWithinRadius, getMeetingsByIds, getFormats } from '$lib/api/bmlt.js';
   import type { Meeting } from '$lib/meetings/types.js';
   import MeetingDetail from '$lib/components/MeetingDetail.svelte';
-  import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+  import { SvelteMap } from 'svelte/reactivity';
 
   // ───────────────────────────────────────────────────────────────────────────
   // Configuration
@@ -299,8 +299,9 @@
       const meetings = await getMeetingsByIds(ids.join(','));
       detailMeetings = meetings;
 
-      // SvelteSet required by svelte/prefer-svelte-reactivity; nothing renders from it.
-      const allFormatIds = new SvelteSet<string>();
+      // Plain Set — nothing renders from this; it is passed straight to getFormats().
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      const allFormatIds = new Set<string>();
       for (const m of meetings) {
         m.format_shared_id_list.split(',').forEach((id) => allFormatIds.add(id.trim()));
       }

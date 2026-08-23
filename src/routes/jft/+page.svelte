@@ -81,7 +81,7 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--text-muted);
-    margin-bottom: 0.5rem;
+    margin-bottom: 1rem;
   }
 
   /* Title heading (h1) */
@@ -90,11 +90,10 @@
     font-weight: 700;
     color: var(--text);
     line-height: 1.3;
-    margin-bottom: 0.25rem;
+    margin-bottom: 1rem;
     text-align: center;
   }
 
-  /* Page reference line */
   /* Page reference line — the div before the pull-quote row */
   :global(.jft-content div[align='center']:has(+ div[align='left'] i)) {
     font-size: 0.8rem;
@@ -107,7 +106,7 @@
     display: block;
     border-left: 3px solid #000090 !important;
     padding: 0.5rem 0.75rem;
-    margin: 0.75rem 0;
+    margin: 0.75rem 0 1rem;
     font-style: italic;
     color: var(--text-muted);
     background-color: var(--surface-sunken);
@@ -134,7 +133,7 @@
     font-size: 0.95rem;
     line-height: 1.7;
     color: var(--text);
-    margin-bottom: 0.5rem;
+    margin-bottom: 1rem;
   }
 
   /* "Just for Today:" affirmation — bold lead-in */
