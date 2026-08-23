@@ -46,6 +46,7 @@
     if (expanded.has(weekday)) {
       expanded.delete(weekday);
     } else {
+      expanded.clear();
       expanded.add(weekday);
     }
   }
