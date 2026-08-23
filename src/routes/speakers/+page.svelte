@@ -15,11 +15,35 @@
   // Keyed by convention_name — stable even if the list order changes.
   const expanded = new SvelteSet<string>();
 
+  // Plain Map — only written to, never read reactively; holds refs to wrapper articles.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
+  const wrapperRefs = new Map<string, HTMLElement>();
+
+  function registerWrapper(el: HTMLElement, name: string) {
+    wrapperRefs.set(name, el);
+    return { destroy() { wrapperRefs.delete(name); } };
+  }
+
   function toggle(name: string) {
     if (expanded.has(name)) {
       expanded.delete(name);
     } else {
+      expanded.clear();
       expanded.add(name);
+      const wrapper = wrapperRefs.get(name);
+      if (wrapper) {
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          let scroller: HTMLElement | null = wrapper.parentElement;
+          while (scroller && !scroller.classList.contains('app-main')) {
+            scroller = scroller.parentElement;
+          }
+          if (!scroller) return;
+          const scrollerRect = scroller.getBoundingClientRect();
+          const wrapperRect = wrapper.getBoundingClientRect();
+          const target = scroller.scrollTop + (wrapperRect.top - scrollerRect.top);
+          scroller.scrollTo({ top: target, behavior: 'smooth' });
+        }));
+      }
     }
   }
 
@@ -58,9 +82,15 @@
   <div class="flex flex-col gap-3 p-3">
     {#each conventions as convention (convention.convention_name)}
       {@const isOpen = expanded.has(convention.convention_name)}
-      <article class="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-sm">
-        <!-- Convention header (accordion toggle) -->
-        <button type="button" onclick={() => toggle(convention.convention_name)} class="focusable flex w-full items-center gap-3 px-4 py-3 text-left" aria-expanded={isOpen}>
+      <!-- Wrapper div is never sticky so getBoundingClientRect() is always accurate -->
+      <article use:registerWrapper={convention.convention_name}>
+        <!-- Convention header — sticky so it stays visible while scrolling the open list -->
+        <button
+          type="button"
+          onclick={() => toggle(convention.convention_name)}
+          class="focusable sticky top-0 z-10 flex w-full items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-left shadow-sm {isOpen ? 'rounded-b-none' : ''}"
+          aria-expanded={isOpen}
+        >
           <span class="flex-1 text-sm font-semibold text-[var(--text)]">{convention.convention_name}</span>
           <span class="shrink-0 rounded-full bg-[var(--surface-sunken)] px-2 py-0.5 text-xs font-bold text-[var(--text-muted)]">
             {convention.speakers.length}
@@ -83,7 +113,7 @@
 
         <!-- Speaker rows -->
         {#if isOpen}
-          <div class="divide-y divide-[var(--border)] border-t border-[var(--border)]">
+          <div class="divide-y divide-[var(--border)] rounded-b-xl border border-t-0 border-[var(--border)]">
             {#each convention.speakers as speaker (speaker.fileName)}
               <button type="button" onclick={() => openSpeaker(speaker.fileName)} class="focusable flex w-full items-center gap-3 px-4 py-3 text-left active:brightness-95">
                 <!-- Play icon -->
