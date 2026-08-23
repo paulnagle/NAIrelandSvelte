@@ -33,7 +33,11 @@ export async function httpGet<T>(url: string): Promise<T> {
   // Parse string bodies
   let data: unknown = response.data;
   if (typeof data === 'string') {
-    data = JSON.parse(data);
+    try {
+      data = JSON.parse(data);
+    } catch {
+      throw new ApiError(200, url);
+    }
   }
 
   // Normalise empty-object BMLT response ({}) to empty array

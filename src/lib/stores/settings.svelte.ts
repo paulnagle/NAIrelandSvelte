@@ -11,10 +11,10 @@ type TimeDisplay = '12hr' | '24hr';
 type DistanceUnit = 'kms' | 'miles';
 export type Theme = 'light' | 'dark' | 'system';
 
-function readString<T extends string>(key: string, fallback: T): T {
+function readString<T extends string>(key: string, fallback: T, allowed: readonly T[]): T {
   if (typeof localStorage === 'undefined') return fallback;
   const stored = localStorage.getItem(key);
-  return stored !== null ? (stored as T) : fallback;
+  return stored !== null && (allowed as readonly string[]).includes(stored) ? (stored as T) : fallback;
 }
 
 function readNullableString(key: string): string | null {
@@ -23,11 +23,11 @@ function readNullableString(key: string): string | null {
 }
 
 class SettingsStore {
-  #language = $state<Language>(readString<Language>('language', 'en'));
-  #timeDisplay = $state<TimeDisplay>(readString<TimeDisplay>('timeDisplay', '12hr'));
-  #distanceUnit = $state<DistanceUnit>(readString<DistanceUnit>('distanceUnit', 'kms'));
+  #language = $state<Language>(readString<Language>('language', 'en', ['en', 'ie']));
+  #timeDisplay = $state<TimeDisplay>(readString<TimeDisplay>('timeDisplay', '12hr', ['12hr', '24hr']));
+  #distanceUnit = $state<DistanceUnit>(readString<DistanceUnit>('distanceUnit', 'kms', ['kms', 'miles']));
   #cleanDate = $state<string | null>(readNullableString('cleanDate'));
-  #theme = $state<Theme>(readString<Theme>('theme', 'system'));
+  #theme = $state<Theme>(readString<Theme>('theme', 'system', ['light', 'dark', 'system']));
 
   get language(): Language {
     return this.#language;

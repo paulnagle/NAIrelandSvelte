@@ -81,7 +81,7 @@
         {t('CONTACT.DETAILS')}
       </p>
       <div class="space-y-3">
-        {#each groups as group, i (i)}
+        {#each groups as group (group.id)}
           <div class="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-4">
             <h2 class="mb-1 text-base font-semibold text-[#000090] dark:text-blue-400">{group.name}</h2>
 

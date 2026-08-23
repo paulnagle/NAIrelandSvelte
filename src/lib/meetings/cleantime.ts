@@ -208,6 +208,13 @@ export function getMilestoneProgress(cleanDate: Date, today: Date): MilestonePro
   const current = currentIdx >= 0 ? list[currentIdx] : null;
   const next = list[currentIdx + 1];
 
+  // next should always exist because the list is extended 2 years beyond today.
+  // Guard defensively so a future caller with an unexpectedly large lookahead gap
+  // gets a clear error rather than a silent TypeError.
+  if (!next) {
+    throw new Error('getMilestoneProgress: milestone list exhausted — increase the lookahead range');
+  }
+
   const startDate = current ? current.date : cleanDate;
   const intervalTotal = next.date.getTime() - startDate.getTime();
   const intervalElapsed = today.getTime() - startDate.getTime();

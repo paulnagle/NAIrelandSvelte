@@ -60,16 +60,18 @@
   /** Whether to show the "Search this area" button after a user pan. */
   let searchAreaVisible = $state(false);
 
+  // Not $state — only read by imperative map logic, never rendered by the template.
   let lastCamera: { zoom: number; bounds: { center: LatLng; southwest: LatLng } } | null = null;
 
   // IDs of markers currently placed on the map, and a map from markerId → meetingIds.
   // SvelteMap so the template re-renders if ever read reactively; plain Map would
   // be fine here too since nothing renders from it, but the lint rule requires SvelteMap.
+  // placedMarkerIds is not $state — only used by imperative marker-removal logic.
   let placedMarkerIds: string[] = [];
   const markerIds = new SvelteMap<string, string[]>();
 
   // Sequence counter — a newer search must not be overwritten by an older one
-  // that was slower.
+  // that was slower. Not $state — never rendered by the template.
   let searchSequence = 0;
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -456,7 +458,7 @@
       <!-- Autocomplete suggestions -->
       {#if suggestions.length > 0}
         <ul role="listbox" aria-label="Place suggestions" class="mt-1 overflow-hidden rounded-xl bg-[var(--surface-raised)] shadow-md">
-          {#each suggestions as item, i (i)}
+          {#each suggestions as item (item.placeId)}
             <li role="option" aria-selected="false">
               <button type="button" onclick={() => choose(item)} class="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-[var(--surface-sunken)]">
                 <MapPin class="mt-0.5 h-4 w-4 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />

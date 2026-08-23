@@ -65,7 +65,7 @@
     {@const DAY_KEYS = ['', 'SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']}
     {@const DAY_COLORS = ['', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']}
     <div class="flex flex-col gap-2 px-3 py-3">
-      {#each groups as group, gi (gi)}
+      {#each groups as group (group.weekday)}
         {@const isToday = group.weekday === todayWeekday}
         {@const isOpen = expanded.has(group.weekday)}
         {@const colorVar = `var(--color-${DAY_COLORS[group.weekday] ?? 'sunday'})`}
@@ -108,7 +108,7 @@
           <!-- Meetings for this day -->
           {#if isOpen}
             <div class="flex flex-col gap-3 border-t border-[var(--border)] bg-[var(--surface-sunken)] p-3">
-              {#each group.meetings as meeting, mi (mi)}
+              {#each group.meetings as meeting (meeting.id_bigint)}
                 <MeetingCard {meeting} {formatNames} />
               {/each}
             </div>

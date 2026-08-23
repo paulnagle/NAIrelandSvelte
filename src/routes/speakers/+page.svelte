@@ -12,13 +12,14 @@
   let conventions = $state<Convention[]>([]);
 
   // Use SvelteSet so the template re-renders when a convention is toggled.
-  const expanded = new SvelteSet<number>();
+  // Keyed by convention_name — stable even if the list order changes.
+  const expanded = new SvelteSet<string>();
 
-  function toggle(index: number) {
-    if (expanded.has(index)) {
-      expanded.delete(index);
+  function toggle(name: string) {
+    if (expanded.has(name)) {
+      expanded.delete(name);
     } else {
-      expanded.add(index);
+      expanded.add(name);
     }
   }
 
@@ -55,11 +56,11 @@
   </div>
 {:else}
   <div class="flex flex-col gap-3 p-3">
-    {#each conventions as convention, i (i)}
-      {@const isOpen = expanded.has(i)}
+    {#each conventions as convention (convention.convention_name)}
+      {@const isOpen = expanded.has(convention.convention_name)}
       <article class="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-sm">
         <!-- Convention header (accordion toggle) -->
-        <button type="button" onclick={() => toggle(i)} class="focusable flex w-full items-center gap-3 px-4 py-3 text-left" aria-expanded={isOpen}>
+        <button type="button" onclick={() => toggle(convention.convention_name)} class="focusable flex w-full items-center gap-3 px-4 py-3 text-left" aria-expanded={isOpen}>
           <span class="flex-1 text-sm font-semibold text-[var(--text)]">{convention.convention_name}</span>
           <span class="shrink-0 rounded-full bg-[var(--surface-sunken)] px-2 py-0.5 text-xs font-bold text-[var(--text-muted)]">
             {convention.speakers.length}
@@ -83,7 +84,7 @@
         <!-- Speaker rows -->
         {#if isOpen}
           <div class="divide-y divide-[var(--border)] border-t border-[var(--border)]">
-            {#each convention.speakers as speaker, j (j)}
+            {#each convention.speakers as speaker (speaker.fileName)}
               <button type="button" onclick={() => openSpeaker(speaker.fileName)} class="focusable flex w-full items-center gap-3 px-4 py-3 text-left active:brightness-95">
                 <!-- Play icon -->
                 <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#000090]/10 dark:bg-blue-400/20">

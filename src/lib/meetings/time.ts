@@ -30,8 +30,8 @@ export function formatTime(totalMinutes: number, display: '12hr' | '24hr'): stri
     return `${hh}:${mm}`;
   }
 
-  // 12-hour clock
-  const ampm = h < 12 || h === 24 ? 'am' : 'pm';
+  // 12-hour clock — h is always 0–23 after the % wrap above, so h < 12 suffices
+  const ampm = h < 12 ? 'am' : 'pm';
   const hour12 = h % 12 || 12; // 0 → 12 (midnight), 12 → 12 (noon)
   return `${hour12}:${mm} ${ampm}`;
 }

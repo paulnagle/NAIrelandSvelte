@@ -19,9 +19,12 @@ export function getMeetingKind(meeting: Pick<Meeting, 'formats'>): MeetingKind {
 
   if (f === '') return 'inperson';
 
-  const hasVM = f.includes('VM');
-  const hasTC = f.includes('TC');
-  const hasHY = f.includes('HY');
+  // Split on commas and match whole tokens so a future code like "NOVM" does not
+  // accidentally set hasVM = true via substring search.
+  const codes = new Set(f.split(',').map((s) => s.trim()));
+  const hasVM = codes.has('VM');
+  const hasTC = codes.has('TC');
+  const hasHY = codes.has('HY');
 
   if (!hasVM && !hasTC && !hasHY) return 'inperson';
   if (hasVM && !hasTC && !hasHY) return 'virtual';

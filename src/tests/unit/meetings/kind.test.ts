@@ -52,4 +52,13 @@ describe('getMeetingKind', () => {
   it('returns tempclosed when formats contains TC plus unrelated codes (no VM, no HY)', () => {
     expect(getMeetingKind(m('TC,O'))).toBe('tempclosed');
   });
+
+  it('does not match VM as a substring of a longer format code', () => {
+    // "NOVM" contains "VM" as a substring — must not be treated as virtual.
+    expect(getMeetingKind(m('NOVM'))).toBe('inperson');
+  });
+
+  it('does not match TC as a substring of a longer format code', () => {
+    expect(getMeetingKind(m('NOTC'))).toBe('inperson');
+  });
 });

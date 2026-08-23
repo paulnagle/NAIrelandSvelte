@@ -23,10 +23,7 @@
     }
   }
 
-  // Improvement #5: $effect for the one-shot async load, consistent with project lifecycle patterns.
-  $effect(() => {
-    load();
-  });
+  load();
 
   async function openPost(url: string) {
     await Browser.open({ url });
@@ -52,7 +49,7 @@
   <!-- WordPress content is from the trusted na-ireland.org API -->
   <!-- eslint-disable svelte/no-at-html-tags -->
   <div class="flex flex-col gap-3 p-3">
-    {#each posts as post, i (i)}
+    {#each posts as post (post.id)}
       {@const imageUrl = getPostImage(post)}
       <article class="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] shadow-sm">
         <!-- Improvement #6: image above title -->
