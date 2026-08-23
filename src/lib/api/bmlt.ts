@@ -113,7 +113,7 @@ export async function getFormats(ids: Set<string>, lang: string): Promise<Record
   const cached = formatCache.get(cacheKey);
   if (cached) return cached;
 
-  const baseUrl = AGGREGATOR_BMLT + `?switcher=GetFormats&show_all=1&format_ids=${idList}`;
+  const baseUrl = IRELAND_BMLT + `?switcher=GetFormats&show_all=1&format_ids=${idList}`;
 
   // Always fetch English first so we have fallback names
   const enResponse = await httpGet<{ id: string; name_string: string }[]>(baseUrl + '&lang_enum=en');
