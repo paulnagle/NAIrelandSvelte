@@ -6,6 +6,7 @@
   import { Browser } from '@capacitor/browser';
   import Globe from '@lucide/svelte/icons/globe';
   import Phone from '@lucide/svelte/icons/phone';
+  import Mail from '@lucide/svelte/icons/mail';
   import ExternalLink from '@lucide/svelte/icons/external-link';
 
   type Status = 'loading' | 'loaded' | 'error';
@@ -100,6 +101,13 @@
                 <a href="tel:{group.helpline}" class="selectable focusable flex items-center gap-2 text-sm text-[#000090] dark:text-blue-400">
                   <Phone size={15} strokeWidth={1.75} />
                   <span class="underline underline-offset-2">{group.helpline}</span>
+                </a>
+              {/if}
+
+              {#if group.contact_email}
+                <a href="mailto:{group.contact_email}" class="selectable focusable flex items-center gap-2 text-sm text-[#000090] dark:text-blue-400">
+                  <Mail size={15} strokeWidth={1.75} />
+                  <span class="underline underline-offset-2">{group.contact_email}</span>
                 </a>
               {/if}
             </div>

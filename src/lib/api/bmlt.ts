@@ -12,6 +12,7 @@ export interface ServiceGroup {
   type: string;
   url: string;
   helpline: string;
+  contact_email: string;
   world_id: string;
   [key: string]: string;
 }
