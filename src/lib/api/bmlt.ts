@@ -104,16 +104,18 @@ export async function getServiceGroups(): Promise<ServiceGroup[]> {
 /**
  * Returns a map of format id → name_string for the given set of format IDs,
  * in the requested language. Falls back to English when the language is 'en'.
- * Results are cached per (ids, lang) key.
+ * Supports querying either the Ireland root server or the global aggregator.
+ * Results are cached per (ids, lang, source) key.
  */
-export async function getFormats(ids: Set<string>, lang: string): Promise<Record<string, string>> {
+export async function getFormats(ids: Set<string>, lang: string, source: 'ireland' | 'aggregator' = 'ireland'): Promise<Record<string, string>> {
   const idList = Array.from(ids).sort().join(',');
-  const cacheKey = `${idList}:${lang}`;
+  const cacheKey = `${source}:${idList}:${lang}`;
 
   const cached = formatCache.get(cacheKey);
   if (cached) return cached;
 
-  const baseUrl = IRELAND_BMLT + `?switcher=GetFormats&show_all=1&format_ids=${idList}`;
+  const serverUrl = source === 'aggregator' ? AGGREGATOR_BMLT : IRELAND_BMLT;
+  const baseUrl = serverUrl + `?switcher=GetFormats&show_all=1&format_ids=${idList}`;
 
   // Always fetch English first so we have fallback names
   const enResponse = await httpGet<{ id: string; name_string: string }[]>(baseUrl + '&lang_enum=en');

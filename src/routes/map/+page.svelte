@@ -303,7 +303,7 @@
         m.format_shared_id_list.split(',').forEach((id) => allFormatIds.add(id.trim()));
       }
       if (allFormatIds.size > 0) {
-        detailFormats = await getFormats(allFormatIds, settings.language);
+        detailFormats = await getFormats(allFormatIds, settings.language, 'aggregator');
       }
     } catch (e) {
       // Close the sheet — it would otherwise remain open showing nothing.
