@@ -12,6 +12,8 @@
   import { Browser } from '@capacitor/browser';
   import { Share } from '@capacitor/share';
 
+  import { openMeetingDirections } from '$lib/maps/directions.js';
+
   import type { Meeting } from '$lib/meetings/types.js';
   import { getMeetingKind } from '$lib/meetings/kind.js';
   import { getStartTimeDisplay, getEndTime } from '$lib/meetings/time.js';
@@ -71,10 +73,8 @@
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
-  function openMaps() {
-    Browser.open({
-      url: `https://www.google.com/maps/search/?api=1&query=${meeting.latitude},${meeting.longitude}`
-    });
+  async function openMaps() {
+    await openMeetingDirections(meeting);
   }
 
   function openLink(url: string) {
