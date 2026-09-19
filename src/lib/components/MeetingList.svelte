@@ -43,7 +43,9 @@
   function registerWrapper(el: HTMLDivElement, weekday: number) {
     wrapperRefs.set(weekday, el);
     return {
-      destroy() { wrapperRefs.delete(weekday); }
+      destroy() {
+        wrapperRefs.delete(weekday);
+      }
     };
   }
 
@@ -65,22 +67,24 @@
       if (wrapper) {
         // Two rAFs: first lets Svelte flush the DOM (old day collapses, new day
         // opens), second lets the browser reflow before we measure.
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          // Find the scrolling <main class="app-main">.
-          let scroller: HTMLElement | null = wrapper.parentElement;
-          while (scroller && !scroller.classList.contains('app-main')) {
-            scroller = scroller.parentElement;
-          }
-          if (!scroller) return;
-          // getBoundingClientRect gives positions relative to the viewport.
-          // The difference between the wrapper's top and the scroller's top,
-          // added to the scroller's current scrollTop, gives the absolute
-          // scroll position we want — then subtract the 36px back-nav bar.
-          const scrollerRect = scroller.getBoundingClientRect();
-          const wrapperRect = wrapper.getBoundingClientRect();
-          const target = scroller.scrollTop + (wrapperRect.top - scrollerRect.top) - 36;
-          scroller.scrollTo({ top: target, behavior: 'smooth' });
-        }));
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            // Find the scrolling <main class="app-main">.
+            let scroller: HTMLElement | null = wrapper.parentElement;
+            while (scroller && !scroller.classList.contains('app-main')) {
+              scroller = scroller.parentElement;
+            }
+            if (!scroller) return;
+            // getBoundingClientRect gives positions relative to the viewport.
+            // The difference between the wrapper's top and the scroller's top,
+            // added to the scroller's current scrollTop, gives the absolute
+            // scroll position we want — then subtract the 36px back-nav bar.
+            const scrollerRect = scroller.getBoundingClientRect();
+            const wrapperRect = wrapper.getBoundingClientRect();
+            const target = scroller.scrollTop + (wrapperRect.top - scrollerRect.top) - 36;
+            scroller.scrollTo({ top: target, behavior: 'smooth' });
+          })
+        );
       }
     }
   }
@@ -111,7 +115,9 @@
           <button
             type="button"
             onclick={() => toggleDay(group.weekday)}
-            class="focusable sticky top-9 z-10 flex w-full items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-left shadow-sm {isOpen ? 'rounded-b-none' : ''}"
+            class="focusable sticky top-9 z-10 flex w-full items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-left shadow-sm {isOpen
+              ? 'rounded-b-none'
+              : ''}"
             aria-expanded={isOpen}
           >
             <!-- Weekday colour swatch -->

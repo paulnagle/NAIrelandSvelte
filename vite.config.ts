@@ -12,13 +12,13 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   server: {
     proxy: {
-      // Proxy /api/jft to jftna.org so the browser never makes a cross-origin
+      // Proxy /api/jft to na.org so the browser never makes a cross-origin
       // request during development. CapacitorHttp handles this natively on
       // device; the Cloudflare Pages Function handles it in production.
       '/api/jft': {
-        target: 'https://www.jftna.org',
+        target: 'https://na.org',
         changeOrigin: true,
-        rewrite: () => '/jft/'
+        rewrite: () => '/jftna/'
       },
       '/api/posts': {
         target: 'https://www.na-ireland.org',
@@ -94,7 +94,7 @@ export default defineConfig({
               url.hostname.endsWith('googleapis.com') ||
               url.hostname === 'www.na-ireland.org' ||
               url.hostname === 'nasouth.ie' ||
-              url.hostname === 'www.jftna.org',
+              url.hostname === 'na.org',
             handler: 'NetworkOnly'
           }
         ]

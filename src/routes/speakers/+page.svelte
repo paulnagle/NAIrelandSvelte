@@ -21,7 +21,11 @@
 
   function registerWrapper(el: HTMLElement, name: string) {
     wrapperRefs.set(name, el);
-    return { destroy() { wrapperRefs.delete(name); } };
+    return {
+      destroy() {
+        wrapperRefs.delete(name);
+      }
+    };
   }
 
   function toggle(name: string) {
@@ -32,17 +36,19 @@
       expanded.add(name);
       const wrapper = wrapperRefs.get(name);
       if (wrapper) {
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          let scroller: HTMLElement | null = wrapper.parentElement;
-          while (scroller && !scroller.classList.contains('app-main')) {
-            scroller = scroller.parentElement;
-          }
-          if (!scroller) return;
-          const scrollerRect = scroller.getBoundingClientRect();
-          const wrapperRect = wrapper.getBoundingClientRect();
-          const target = scroller.scrollTop + (wrapperRect.top - scrollerRect.top);
-          scroller.scrollTo({ top: target, behavior: 'smooth' });
-        }));
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            let scroller: HTMLElement | null = wrapper.parentElement;
+            while (scroller && !scroller.classList.contains('app-main')) {
+              scroller = scroller.parentElement;
+            }
+            if (!scroller) return;
+            const scrollerRect = scroller.getBoundingClientRect();
+            const wrapperRect = wrapper.getBoundingClientRect();
+            const target = scroller.scrollTop + (wrapperRect.top - scrollerRect.top);
+            scroller.scrollTo({ top: target, behavior: 'smooth' });
+          })
+        );
       }
     }
   }
@@ -88,7 +94,9 @@
         <button
           type="button"
           onclick={() => toggle(convention.convention_name)}
-          class="focusable sticky top-0 z-10 flex w-full items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-left shadow-sm {isOpen ? 'rounded-b-none' : ''}"
+          class="focusable sticky top-0 z-10 flex w-full items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3 text-left shadow-sm {isOpen
+            ? 'rounded-b-none'
+            : ''}"
           aria-expanded={isOpen}
         >
           <span class="flex-1 text-sm font-semibold text-[var(--text)]">{convention.convention_name}</span>
