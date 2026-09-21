@@ -10,6 +10,7 @@ type Language = 'en' | 'ie';
 type TimeDisplay = '12hr' | '24hr';
 type DistanceUnit = 'kms' | 'miles';
 export type Theme = 'light' | 'dark' | 'system';
+export type DirectionsApp = 'google-maps-web' | 'google-maps-app' | 'apple-maps-web' | 'apple-maps-app';
 
 function readString<T extends string>(key: string, fallback: T, allowed: readonly T[]): T {
   if (typeof localStorage === 'undefined') return fallback;
@@ -22,12 +23,15 @@ function readNullableString(key: string): string | null {
   return localStorage.getItem(key);
 }
 
+const DIRECTIONS_APP_VALUES = ['google-maps-web', 'google-maps-app', 'apple-maps-web', 'apple-maps-app'] as const;
+
 class SettingsStore {
   #language = $state<Language>(readString<Language>('language', 'en', ['en', 'ie']));
   #timeDisplay = $state<TimeDisplay>(readString<TimeDisplay>('timeDisplay', '12hr', ['12hr', '24hr']));
   #distanceUnit = $state<DistanceUnit>(readString<DistanceUnit>('distanceUnit', 'kms', ['kms', 'miles']));
   #cleanDate = $state<string | null>(readNullableString('cleanDate'));
   #theme = $state<Theme>(readString<Theme>('theme', 'system', ['light', 'dark', 'system']));
+  #directionsApp = $state<DirectionsApp>(readString<DirectionsApp>('directionsApp', 'google-maps-web', DIRECTIONS_APP_VALUES));
 
   get language(): Language {
     return this.#language;
@@ -70,6 +74,17 @@ class SettingsStore {
     this.#theme = value;
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('theme', value);
+    }
+  }
+
+  get directionsApp(): DirectionsApp {
+    return this.#directionsApp;
+  }
+
+  set directionsApp(value: DirectionsApp) {
+    this.#directionsApp = value;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('directionsApp', value);
     }
   }
 

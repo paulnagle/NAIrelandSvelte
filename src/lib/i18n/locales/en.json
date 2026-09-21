@@ -143,5 +143,10 @@
   "SEARCH_AREA": "Search this area",
   "SEARCH_PLACEHOLDER": "Search…",
   "ZOOM_IN_TO_SEARCH": "Zoom in to search this area",
-  "RETRY": "Retry"
+  "RETRY": "Retry",
+  "DIRECTIONS_APP": "Directions app",
+  "DIRECTIONS_GOOGLE_WEB": "Google Maps (web)",
+  "DIRECTIONS_GOOGLE_APP": "Google Maps (app)",
+  "DIRECTIONS_APPLE_WEB": "Apple Maps (web)",
+  "DIRECTIONS_APPLE_APP": "Apple Maps (app)"
 }

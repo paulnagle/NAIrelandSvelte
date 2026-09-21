@@ -143,5 +143,10 @@
   "SEARCH_AREA": "Search this area",
   "SEARCH_PLACEHOLDER": "Search…",
   "ZOOM_IN_TO_SEARCH": "Zoom in to search this area",
-  "RETRY": "Triail arís"
+  "RETRY": "Triail arís",
+  "DIRECTIONS_APP": "Aip treoracha",
+  "DIRECTIONS_GOOGLE_WEB": "Google Maps (gréasán)",
+  "DIRECTIONS_GOOGLE_APP": "Google Maps (aip)",
+  "DIRECTIONS_APPLE_WEB": "Apple Maps (gréasán)",
+  "DIRECTIONS_APPLE_APP": "Apple Maps (aip)"
 }

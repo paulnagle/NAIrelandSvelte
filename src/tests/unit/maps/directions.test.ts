@@ -6,19 +6,20 @@ vi.mock('@capacitor/browser', () => ({
   }
 }));
 
-vi.mock('$lib/platform.js', () => ({
-  isAndroid: vi.fn(),
-  isIOS: vi.fn()
+vi.mock('$lib/stores/settings.svelte.js', () => ({
+  settings: {
+    directionsApp: 'google-maps-web' as import('$lib/stores/settings.svelte.js').DirectionsApp
+  }
 }));
 
 import { Browser } from '@capacitor/browser';
 import type { Meeting } from '$lib/meetings/types';
 import { openMeetingDirections, testing } from '$lib/maps/directions';
-import { isAndroid, isIOS } from '$lib/platform.js';
+import { settings } from '$lib/stores/settings.svelte.js';
+import type { DirectionsApp } from '$lib/stores/settings.svelte.js';
 
 const mockOpen = vi.mocked(Browser.open);
-const mockIsAndroid = vi.mocked(isAndroid);
-const mockIsIOS = vi.mocked(isIOS);
+const mockSettings = settings as { directionsApp: DirectionsApp };
 
 function baseMeeting(overrides: Partial<Meeting> = {}): Meeting {
   return {
@@ -59,63 +60,71 @@ function baseMeeting(overrides: Partial<Meeting> = {}): Meeting {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockIsIOS.mockReturnValue(false);
-  mockIsAndroid.mockReturnValue(false);
+  mockSettings.directionsApp = 'google-maps-web';
 });
 
 describe('openMeetingDirections', () => {
-  it('opens Apple Maps on iOS', async () => {
-    mockIsIOS.mockReturnValue(true);
-
-    await openMeetingDirections(baseMeeting());
-
-    expect(mockOpen).toHaveBeenCalledWith({ url: testing.appleMapsUrl(baseMeeting()) });
-  });
-
-  it('falls back to Google Maps web on iOS when Apple Maps open fails', async () => {
-    const meeting = baseMeeting();
-    mockIsIOS.mockReturnValue(true);
-    mockOpen.mockRejectedValueOnce(new Error('open failed')).mockResolvedValueOnce(undefined);
-
-    await openMeetingDirections(meeting);
-
-    expect(mockOpen).toHaveBeenNthCalledWith(1, { url: testing.appleMapsUrl(meeting) });
-    expect(mockOpen).toHaveBeenNthCalledWith(2, { url: testing.googleMapsWebUrl(meeting) });
-  });
-
-  it('opens the Google Maps app on Android', async () => {
-    mockIsAndroid.mockReturnValue(true);
-
-    await openMeetingDirections(baseMeeting());
-
-    expect(mockOpen).toHaveBeenCalledWith({ url: testing.googleMapsAppUrl(baseMeeting()) });
-  });
-
-  it('falls back to Google Maps web on Android when the app URL fails', async () => {
-    const meeting = baseMeeting();
-    mockIsAndroid.mockReturnValue(true);
-    mockOpen.mockRejectedValueOnce(new Error('open failed')).mockResolvedValueOnce(undefined);
-
-    await openMeetingDirections(meeting);
-
-    expect(mockOpen).toHaveBeenNthCalledWith(1, { url: testing.googleMapsAppUrl(meeting) });
-    expect(mockOpen).toHaveBeenNthCalledWith(2, { url: testing.googleMapsWebUrl(meeting) });
-  });
-
-  it('uses Google Maps web outside native platforms', async () => {
+  it('opens Google Maps web when preference is google-maps-web', async () => {
+    mockSettings.directionsApp = 'google-maps-web';
     const meeting = baseMeeting();
 
     await openMeetingDirections(meeting);
 
     expect(mockOpen).toHaveBeenCalledWith({ url: testing.googleMapsWebUrl(meeting) });
   });
+
+  it('opens Google Maps app when preference is google-maps-app', async () => {
+    mockSettings.directionsApp = 'google-maps-app';
+    const meeting = baseMeeting();
+
+    await openMeetingDirections(meeting);
+
+    expect(mockOpen).toHaveBeenCalledWith({ url: testing.googleMapsAppUrl(meeting) });
+  });
+
+  it('opens Apple Maps web when preference is apple-maps-web', async () => {
+    mockSettings.directionsApp = 'apple-maps-web';
+    const meeting = baseMeeting();
+
+    await openMeetingDirections(meeting);
+
+    expect(mockOpen).toHaveBeenCalledWith({ url: testing.appleMapsWebUrl(meeting) });
+  });
+
+  it('opens Apple Maps app when preference is apple-maps-app', async () => {
+    mockSettings.directionsApp = 'apple-maps-app';
+    const meeting = baseMeeting();
+
+    await openMeetingDirections(meeting);
+
+    expect(mockOpen).toHaveBeenCalledWith({ url: testing.appleMapsAppUrl(meeting) });
+  });
 });
 
 describe('meeting directions URLs', () => {
-  it('includes the meeting label where supported', () => {
+  it('google-maps-web URL encodes coordinates', () => {
     const meeting = baseMeeting();
+    expect(testing.googleMapsWebUrl(meeting)).toContain(encodeURIComponent('53.3498,-6.2603'));
+  });
 
-    expect(testing.appleMapsUrl(meeting)).toContain(encodeURIComponent('53.3498,-6.2603 (Test Meeting, The Hall, 1 Main St, Dublin)'));
-    expect(testing.googleMapsAppUrl(meeting)).toContain(encodeURIComponent('53.3498,-6.2603 (Test Meeting, The Hall, 1 Main St, Dublin)'));
+  it('google-maps-app URL is a universal link with encoded query', () => {
+    const meeting = baseMeeting();
+    const url = testing.googleMapsAppUrl(meeting);
+    expect(url).toMatch(/^https:\/\/maps\.google\.com\/maps/);
+    expect(url).toContain(encodeURIComponent('53.3498,-6.2603 (Test Meeting, The Hall, 1 Main St, Dublin)'));
+  });
+
+  it('apple-maps-web URL uses https scheme and includes label', () => {
+    const meeting = baseMeeting();
+    const url = testing.appleMapsWebUrl(meeting);
+    expect(url).toMatch(/^https:\/\/maps\.apple\.com/);
+    expect(url).toContain(encodeURIComponent('53.3498,-6.2603 (Test Meeting, The Hall, 1 Main St, Dublin)'));
+  });
+
+  it('apple-maps-app URL uses http scheme and includes label', () => {
+    const meeting = baseMeeting();
+    const url = testing.appleMapsAppUrl(meeting);
+    expect(url).toMatch(/^http:\/\/maps\.apple\.com/);
+    expect(url).toContain(encodeURIComponent('53.3498,-6.2603 (Test Meeting, The Hall, 1 Main St, Dublin)'));
   });
 });

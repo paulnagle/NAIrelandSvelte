@@ -2,10 +2,13 @@
   import { t } from '$lib/i18n/index.js';
   import { pageTitle } from '$lib/stores/pageTitle.svelte.js';
   import { settings } from '$lib/stores/settings.svelte.js';
+  import { isIOS } from '$lib/platform.js';
 
   $effect(() => {
     pageTitle.value = t('SETTINGS');
   });
+
+  const ios = $derived(isIOS());
 </script>
 
 <div class="divide-y divide-[var(--border)]">
@@ -103,6 +106,61 @@
       >
         {t('24HR')}
       </button>
+    </div>
+  </div>
+
+  <!-- Directions app -->
+  <div class="px-4 py-4">
+    <p class="mb-3 text-sm font-semibold tracking-wider text-[var(--text-muted)] uppercase">
+      {t('DIRECTIONS_APP')}
+    </p>
+    <div class="flex flex-col gap-2">
+      <div class="flex gap-3">
+        <button
+          type="button"
+          onclick={() => {
+            settings.directionsApp = 'google-maps-web';
+          }}
+          class="focusable flex-1 rounded-md border py-2 text-sm font-semibold transition-colors
+            {settings.directionsApp === 'google-maps-web' ? 'border-[#000090] bg-[#000090] text-white' : 'border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)]'}"
+        >
+          {t('DIRECTIONS_GOOGLE_WEB')}
+        </button>
+        <button
+          type="button"
+          onclick={() => {
+            settings.directionsApp = 'google-maps-app';
+          }}
+          class="focusable flex-1 rounded-md border py-2 text-sm font-semibold transition-colors
+            {settings.directionsApp === 'google-maps-app' ? 'border-[#000090] bg-[#000090] text-white' : 'border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)]'}"
+        >
+          {t('DIRECTIONS_GOOGLE_APP')}
+        </button>
+      </div>
+      {#if ios}
+        <div class="flex gap-3">
+          <button
+            type="button"
+            onclick={() => {
+              settings.directionsApp = 'apple-maps-web';
+            }}
+            class="focusable flex-1 rounded-md border py-2 text-sm font-semibold transition-colors
+              {settings.directionsApp === 'apple-maps-web' ? 'border-[#000090] bg-[#000090] text-white' : 'border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)]'}"
+          >
+            {t('DIRECTIONS_APPLE_WEB')}
+          </button>
+          <button
+            type="button"
+            onclick={() => {
+              settings.directionsApp = 'apple-maps-app';
+            }}
+            class="focusable flex-1 rounded-md border py-2 text-sm font-semibold transition-colors
+              {settings.directionsApp === 'apple-maps-app' ? 'border-[#000090] bg-[#000090] text-white' : 'border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)]'}"
+          >
+            {t('DIRECTIONS_APPLE_APP')}
+          </button>
+        </div>
+      {/if}
     </div>
   </div>
 </div>
