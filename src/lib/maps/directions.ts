@@ -1,6 +1,7 @@
 import { Browser } from '@capacitor/browser';
 
 import type { Meeting } from '$lib/meetings/types.js';
+import { isNative } from '$lib/platform.js';
 import { settings } from '$lib/stores/settings.svelte.js';
 
 function meetingLabel(meeting: Meeting): string {
@@ -24,26 +25,48 @@ function appleMapsAppUrl(meeting: Meeting): string {
 }
 
 function googleMapsAppUrl(meeting: Meeting): string {
-  // Universal link — Google Maps intercepts this when installed; falls back to
-  // the browser when not. Avoids the comgooglemaps:// custom scheme which opens
-  // a blank page when the app isn't present.
+  // Universal link — on native, iOS/Android dispatch this to the Google Maps app
+  // when installed. On web it opens in the browser as a normal maps search.
   const label = meetingLabel(meeting);
   const query = label ? `${meeting.latitude},${meeting.longitude} (${label})` : `${meeting.latitude},${meeting.longitude}`;
   return `https://maps.google.com/maps?q=${encodeURIComponent(query)}`;
 }
 
+/**
+ * Open a URL via the OS URL dispatcher so the OS can route it to a native app
+ * (deep-link / universal link). Browser.open() always opens an in-app WebView
+ * and never reaches the OS dispatcher, so it cannot launch native apps.
+ */
+function openViaOS(url: string): void {
+  window.location.href = url;
+}
+
 export async function openMeetingDirections(meeting: Meeting): Promise<void> {
   switch (settings.directionsApp) {
     case 'google-maps-app':
-      await Browser.open({ url: googleMapsAppUrl(meeting) });
+      // On native, let the OS dispatch the universal link to the Google Maps app.
+      // On web, open in the in-app browser as a regular maps page.
+      if (isNative()) {
+        openViaOS(googleMapsAppUrl(meeting));
+      } else {
+        await Browser.open({ url: googleMapsAppUrl(meeting) });
+      }
       break;
 
     case 'apple-maps-web':
-      await Browser.open({ url: appleMapsWebUrl(meeting) });
+      // https://maps.apple.com is an Apple universal link; on iOS the OS opens
+      // it in Apple Maps. On web it opens as a webpage in the browser.
+      if (isNative()) {
+        openViaOS(appleMapsWebUrl(meeting));
+      } else {
+        await Browser.open({ url: appleMapsWebUrl(meeting) });
+      }
       break;
 
     case 'apple-maps-app':
-      await Browser.open({ url: appleMapsAppUrl(meeting) });
+      // http://maps.apple.com is a deep-link scheme; must go via OS dispatcher
+      // so iOS routes it to the Maps app rather than opening a WebView.
+      openViaOS(appleMapsAppUrl(meeting));
       break;
 
     case 'google-maps-web':

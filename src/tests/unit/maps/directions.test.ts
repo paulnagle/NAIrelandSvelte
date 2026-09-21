@@ -6,6 +6,10 @@ vi.mock('@capacitor/browser', () => ({
   }
 }));
 
+vi.mock('$lib/platform.js', () => ({
+  isNative: vi.fn()
+}));
+
 vi.mock('$lib/stores/settings.svelte.js', () => ({
   settings: {
     directionsApp: 'google-maps-web' as import('$lib/stores/settings.svelte.js').DirectionsApp
@@ -15,10 +19,12 @@ vi.mock('$lib/stores/settings.svelte.js', () => ({
 import { Browser } from '@capacitor/browser';
 import type { Meeting } from '$lib/meetings/types';
 import { openMeetingDirections, testing } from '$lib/maps/directions';
+import { isNative } from '$lib/platform.js';
 import { settings } from '$lib/stores/settings.svelte.js';
 import type { DirectionsApp } from '$lib/stores/settings.svelte.js';
 
 const mockOpen = vi.mocked(Browser.open);
+const mockIsNative = vi.mocked(isNative);
 const mockSettings = settings as { directionsApp: DirectionsApp };
 
 function baseMeeting(overrides: Partial<Meeting> = {}): Meeting {
@@ -58,46 +64,95 @@ function baseMeeting(overrides: Partial<Meeting> = {}): Meeting {
   };
 }
 
+// jsdom provides window.location but assignment to href is a no-op; we spy on it.
+const locationSpy = vi.spyOn(window, 'location', 'get');
+const mockLocation = { href: '' };
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockSettings.directionsApp = 'google-maps-web';
+  mockIsNative.mockReturnValue(false);
+  mockLocation.href = '';
+  locationSpy.mockReturnValue(mockLocation as unknown as Location);
 });
 
-describe('openMeetingDirections', () => {
-  it('opens Google Maps web when preference is google-maps-web', async () => {
+describe('openMeetingDirections — web (isNative=false)', () => {
+  it('opens Google Maps web via Browser.open', async () => {
     mockSettings.directionsApp = 'google-maps-web';
-    const meeting = baseMeeting();
 
-    await openMeetingDirections(meeting);
+    await openMeetingDirections(baseMeeting());
 
-    expect(mockOpen).toHaveBeenCalledWith({ url: testing.googleMapsWebUrl(meeting) });
+    expect(mockOpen).toHaveBeenCalledWith({ url: testing.googleMapsWebUrl(baseMeeting()) });
+    expect(mockLocation.href).toBe('');
   });
 
-  it('opens Google Maps app when preference is google-maps-app', async () => {
+  it('opens Google Maps app URL via Browser.open on web', async () => {
     mockSettings.directionsApp = 'google-maps-app';
-    const meeting = baseMeeting();
 
-    await openMeetingDirections(meeting);
+    await openMeetingDirections(baseMeeting());
 
-    expect(mockOpen).toHaveBeenCalledWith({ url: testing.googleMapsAppUrl(meeting) });
+    expect(mockOpen).toHaveBeenCalledWith({ url: testing.googleMapsAppUrl(baseMeeting()) });
+    expect(mockLocation.href).toBe('');
   });
 
-  it('opens Apple Maps web when preference is apple-maps-web', async () => {
+  it('opens Apple Maps web URL via Browser.open on web', async () => {
     mockSettings.directionsApp = 'apple-maps-web';
-    const meeting = baseMeeting();
 
-    await openMeetingDirections(meeting);
+    await openMeetingDirections(baseMeeting());
 
-    expect(mockOpen).toHaveBeenCalledWith({ url: testing.appleMapsWebUrl(meeting) });
+    expect(mockOpen).toHaveBeenCalledWith({ url: testing.appleMapsWebUrl(baseMeeting()) });
+    expect(mockLocation.href).toBe('');
   });
 
-  it('opens Apple Maps app when preference is apple-maps-app', async () => {
+  it('opens Apple Maps app URL via OS on web (deep-link always uses OS)', async () => {
     mockSettings.directionsApp = 'apple-maps-app';
-    const meeting = baseMeeting();
 
-    await openMeetingDirections(meeting);
+    await openMeetingDirections(baseMeeting());
 
-    expect(mockOpen).toHaveBeenCalledWith({ url: testing.appleMapsAppUrl(meeting) });
+    expect(mockOpen).not.toHaveBeenCalled();
+    expect(mockLocation.href).toBe(testing.appleMapsAppUrl(baseMeeting()));
+  });
+});
+
+describe('openMeetingDirections — native (isNative=true)', () => {
+  beforeEach(() => {
+    mockIsNative.mockReturnValue(true);
+  });
+
+  it('opens Google Maps web via Browser.open on native', async () => {
+    mockSettings.directionsApp = 'google-maps-web';
+
+    await openMeetingDirections(baseMeeting());
+
+    expect(mockOpen).toHaveBeenCalledWith({ url: testing.googleMapsWebUrl(baseMeeting()) });
+    expect(mockLocation.href).toBe('');
+  });
+
+  it('dispatches Google Maps app URL via OS on native', async () => {
+    mockSettings.directionsApp = 'google-maps-app';
+
+    await openMeetingDirections(baseMeeting());
+
+    expect(mockOpen).not.toHaveBeenCalled();
+    expect(mockLocation.href).toBe(testing.googleMapsAppUrl(baseMeeting()));
+  });
+
+  it('dispatches Apple Maps web URL via OS on native', async () => {
+    mockSettings.directionsApp = 'apple-maps-web';
+
+    await openMeetingDirections(baseMeeting());
+
+    expect(mockOpen).not.toHaveBeenCalled();
+    expect(mockLocation.href).toBe(testing.appleMapsWebUrl(baseMeeting()));
+  });
+
+  it('dispatches Apple Maps app URL via OS on native', async () => {
+    mockSettings.directionsApp = 'apple-maps-app';
+
+    await openMeetingDirections(baseMeeting());
+
+    expect(mockOpen).not.toHaveBeenCalled();
+    expect(mockLocation.href).toBe(testing.appleMapsAppUrl(baseMeeting()));
   });
 });
 
