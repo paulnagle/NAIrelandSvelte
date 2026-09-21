@@ -71,9 +71,17 @@ export async function getRadiusMeetings(lat: number, lng: number, radiusKm: numb
  * Uses positive geo_width_km, trimmed to coordinates + id only for map use.
  * Only in-person (venue_type=1) and hybrid (venue_type=3) meetings — virtual
  * meetings carry arbitrary coordinates and must not appear as map pins.
+ *
+ * The `venue_types[]` brackets are written `%5B%5D` on purpose. A literal `[`
+ * is not a legal query character, and since iOS 17 `URL(string:)` — which is
+ * what CapacitorHttp hands the URL to — answers one by percent-encoding the
+ * *whole* string, `%` included, so any `%2C` or `%2F` elsewhere in the URL
+ * arrives as `%252C` and the server silently ignores that parameter. PHP
+ * decodes the key, so the server sees `venue_types[]` either way.
  */
 export async function meetingsWithinRadius(lat: number, lng: number, radiusKm: number): Promise<Meeting[]> {
-  const url = AGGREGATOR_BMLT + `?switcher=GetSearchResults&geo_width_km=${radiusKm}&long_val=${lng}&lat_val=${lat}` + `&sort_keys=longitude,latitude&venue_types[]=1&venue_types[]=3&${CALLING_APP}`;
+  const url =
+    AGGREGATOR_BMLT + `?switcher=GetSearchResults&geo_width_km=${radiusKm}&long_val=${lng}&lat_val=${lat}` + `&sort_keys=longitude,latitude&venue_types%5B%5D=1&venue_types%5B%5D=3&${CALLING_APP}`;
   return httpGet<Meeting[]>(url);
 }
 
@@ -88,7 +96,8 @@ export async function getMeetingsByIds(ids: string): Promise<Meeting[]> {
   const repeated = ids
     .split(',')
     .filter(Boolean)
-    .map((id) => `meeting_ids[]=${encodeURIComponent(id.trim())}`)
+    // Encoded brackets: see `meetingsWithinRadius` — a literal `[` makes iOS re-encode the whole URL.
+    .map((id) => `meeting_ids%5B%5D=${encodeURIComponent(id.trim())}`)
     .join('&');
   const url = AGGREGATOR_BMLT + `?switcher=GetSearchResults&${repeated}&${CALLING_APP}`;
   return httpGet<Meeting[]>(url);

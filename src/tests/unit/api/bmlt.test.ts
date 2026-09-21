@@ -33,13 +33,13 @@ describe('getMeetingsByIds', () => {
     await getMeetingsByIds('1,2,3');
 
     const url: string = mockGet.mock.calls[0][0].url;
-    // The URL is built by string concatenation, not URLSearchParams, so [] is
-    // not percent-encoded in the parameter name.
-    expect(url).toContain('meeting_ids[]=1');
-    expect(url).toContain('meeting_ids[]=2');
-    expect(url).toContain('meeting_ids[]=3');
+    // The brackets are percent-encoded on purpose: a literal `[` is illegal in
+    // a query, and iOS answers one by re-encoding the whole URL, `%` included.
+    expect(url).toContain('meeting_ids%5B%5D=1');
+    expect(url).toContain('meeting_ids%5B%5D=2');
+    expect(url).toContain('meeting_ids%5B%5D=3');
     // Must NOT pass a single comma-joined value
-    expect(url).not.toContain('meeting_ids[]=1,2,3');
+    expect(url).not.toContain('meeting_ids%5B%5D=1,2,3');
   });
 
   it('handles a single id', async () => {
@@ -48,7 +48,7 @@ describe('getMeetingsByIds', () => {
     await getMeetingsByIds('42');
 
     const url: string = mockGet.mock.calls[0][0].url;
-    expect(url).toContain('meeting_ids[]=42');
+    expect(url).toContain('meeting_ids%5B%5D=42');
   });
 
   it('trims whitespace from each id', async () => {
@@ -57,10 +57,10 @@ describe('getMeetingsByIds', () => {
     await getMeetingsByIds(' 5 , 6 ');
 
     const url: string = mockGet.mock.calls[0][0].url;
-    expect(url).toContain('meeting_ids[]=5');
-    expect(url).toContain('meeting_ids[]=6');
+    expect(url).toContain('meeting_ids%5B%5D=5');
+    expect(url).toContain('meeting_ids%5B%5D=6');
     // Spaces must not be in the ids (encodeURIComponent converts them to %20)
-    expect(url).not.toContain('meeting_ids[]= ');
+    expect(url).not.toContain('meeting_ids%5B%5D= ');
   });
 
   it('filters empty segments from the id string', async () => {
@@ -69,8 +69,8 @@ describe('getMeetingsByIds', () => {
     await getMeetingsByIds(',7,,8,');
 
     const url: string = mockGet.mock.calls[0][0].url;
-    expect(url).toContain('meeting_ids[]=7');
-    expect(url).toContain('meeting_ids[]=8');
+    expect(url).toContain('meeting_ids%5B%5D=7');
+    expect(url).toContain('meeting_ids%5B%5D=8');
   });
 
   it('returns the parsed meeting array on success', async () => {
