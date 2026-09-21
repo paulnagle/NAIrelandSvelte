@@ -138,28 +138,16 @@
         </button>
       </div>
       {#if ios}
-        <div class="flex gap-3">
-          <button
-            type="button"
-            onclick={() => {
-              settings.directionsApp = 'apple-maps-web';
-            }}
-            class="focusable flex-1 rounded-md border py-2 text-sm font-semibold transition-colors
-              {settings.directionsApp === 'apple-maps-web' ? 'border-[#000090] bg-[#000090] text-white' : 'border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)]'}"
-          >
-            {t('DIRECTIONS_APPLE_WEB')}
-          </button>
-          <button
-            type="button"
-            onclick={() => {
-              settings.directionsApp = 'apple-maps-app';
-            }}
-            class="focusable flex-1 rounded-md border py-2 text-sm font-semibold transition-colors
-              {settings.directionsApp === 'apple-maps-app' ? 'border-[#000090] bg-[#000090] text-white' : 'border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)]'}"
-          >
-            {t('DIRECTIONS_APPLE_APP')}
-          </button>
-        </div>
+        <button
+          type="button"
+          onclick={() => {
+            settings.directionsApp = 'apple-maps-app';
+          }}
+          class="focusable rounded-md border py-2 text-sm font-semibold transition-colors
+            {settings.directionsApp === 'apple-maps-app' ? 'border-[#000090] bg-[#000090] text-white' : 'border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)]'}"
+        >
+          {t('DIRECTIONS_APPLE_APP')}
+        </button>
       {/if}
     </div>
   </div>

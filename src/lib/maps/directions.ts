@@ -54,10 +54,11 @@ export async function openMeetingDirections(meeting: Meeting): Promise<void> {
       break;
 
     case 'apple-maps-web':
-      // https://maps.apple.com is an Apple universal link; on iOS the OS opens
-      // it in Apple Maps. On web it opens as a webpage in the browser.
+      // maps.apple.com is a universal link — iOS always opens it in Apple Maps
+      // regardless of scheme. Treat identically to apple-maps-app on native;
+      // on web fall through to Browser.open with the https URL.
       if (isNative()) {
-        openViaOS(appleMapsWebUrl(meeting));
+        openViaOS(appleMapsAppUrl(meeting));
       } else {
         await Browser.open({ url: appleMapsWebUrl(meeting) });
       }

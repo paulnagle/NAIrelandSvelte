@@ -137,13 +137,15 @@ describe('openMeetingDirections — native (isNative=true)', () => {
     expect(mockLocation.href).toBe(testing.googleMapsAppUrl(baseMeeting()));
   });
 
-  it('dispatches Apple Maps web URL via OS on native', async () => {
+  it('dispatches Apple Maps app URL via OS when apple-maps-web set on native', async () => {
+    // apple-maps-web on native routes to the app URL because iOS always opens
+    // maps.apple.com in the Maps app regardless of http vs https scheme.
     mockSettings.directionsApp = 'apple-maps-web';
 
     await openMeetingDirections(baseMeeting());
 
     expect(mockOpen).not.toHaveBeenCalled();
-    expect(mockLocation.href).toBe(testing.appleMapsWebUrl(baseMeeting()));
+    expect(mockLocation.href).toBe(testing.appleMapsAppUrl(baseMeeting()));
   });
 
   it('dispatches Apple Maps app URL via OS on native', async () => {

@@ -147,6 +147,5 @@
   "DIRECTIONS_APP": "Aip treoracha",
   "DIRECTIONS_GOOGLE_WEB": "Google Maps (gréasán)",
   "DIRECTIONS_GOOGLE_APP": "Google Maps (aip)",
-  "DIRECTIONS_APPLE_WEB": "Apple Maps (gréasán)",
-  "DIRECTIONS_APPLE_APP": "Apple Maps (aip)"
+  "DIRECTIONS_APPLE_APP": "Apple Maps"
 }
