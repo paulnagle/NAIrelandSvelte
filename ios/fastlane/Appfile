@@ -1,0 +1,3 @@
+app_identifier "ie.nasouth.apple"
+apple_id "paulnagle@gmail.com"
+itc_team_name "Paul Nagle" # Update if your App Store Connect team name differs

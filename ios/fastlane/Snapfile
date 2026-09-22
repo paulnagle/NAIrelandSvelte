@@ -1,0 +1,38 @@
+# Snapfile — fastlane snapshot configuration
+# Run: cd ios && bundle exec fastlane screenshots
+
+# App Store Connect currently requires 6.9" (iPhone 16 Pro Max).
+# 6.7" (iPhone 16 Plus) is kept so screenshots reuse across the similar-size class.
+# iPad Pro 13-inch is required because the app supports TARGETED_DEVICE_FAMILY 1,2.
+devices([
+  "iPhone 16 Pro Max",
+  "iPhone 16 Plus",
+  "iPad Pro 13-inch (M4)"
+])
+
+languages(["en-IE"])
+
+# The shared Xcode scheme (xcshareddata/xcschemes/App.xcscheme)
+scheme "App"
+
+# Explicit project path (relative to ios/) — prevents the "couldn't auto-detect" prompt.
+project "./App/App.xcodeproj"
+
+# UI test target created for screenshots
+xcargs "-testPlan SnapshotTests" if false # reserved — plain target used instead
+
+# Output directory relative to ios/
+output_directory "./screenshots"
+
+clear_previous_screenshots true
+
+# Override the status bar so screenshots have a clean 9:41, full signal/battery.
+override_status_bar true
+override_status_bar_arguments "--time 9:41 --dataNetwork wifi --wifiBars 3 --batteryState charged --batteryLevel 100"
+
+# Stop after first failure per device — don't accumulate broken screenshots.
+stop_after_first_error false
+
+# Use the iOS simulator (not a connected device).
+# Derived data is placed inside the ios/ tree to keep it out of the repo root.
+derived_data_path "./DerivedData"

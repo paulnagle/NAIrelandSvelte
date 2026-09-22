@@ -80,3 +80,7 @@ android/.gradle/
 android/.idea/
 android/local.properties
 android/capacitor-cordova-android-plugins/
+
+# Fastlane / Ruby
+Gemfile.lock
+ios/App/AppUITests/SnapshotHelper.swift
